@@ -155,6 +155,12 @@ export default function FlySwarmGame() {
             <b>MOVE {pct(hud.boss.brain.output.forward)}</b>
             <b>ESC {pct(hud.boss.brain.output.escape)}</b>
             <b>ACT {pct(hud.boss.brain.output.activity)}</b>
+            <b className="dopamine-readout">
+              DOP {hud.boss.dopamine.recentReward >= 0 ? '+' : ''}
+              {hud.boss.dopamine.recentReward.toFixed(2)}
+            </b>
+            <b>GEN {hud.boss.dopamine.generation}</b>
+            <b>LEARN {hud.boss.dopamine.updates}</b>
           </div>
         </div>
       )}
@@ -178,7 +184,8 @@ export default function FlySwarmGame() {
             <p className="overlay-copy">
               WASD / 방향키로 이동하세요. 공격은 자동입니다.<br/>
               일반몹은 Utility AI, 보스는 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
-              전체뇌 데이터 약 30.7MB는 게임 시작 후 백그라운드에서 불러옵니다.
+              보스가 플레이어에게 피해를 주면 도파민형 보상을 받고, 피격되면 패널티를 받아 행동 정책을 학습합니다.<br/>
+              학습값은 브라우저에 저장되어 다음 보스전에도 이어집니다.
             </p>
             <button onClick={start}>ENTER THE SWARM</button>
           </div>

@@ -574,3 +574,11 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
   }
   .fullscreen-fab span { font-size: 16px; }
 }
+
+
+/* Dopamine reward-learning telemetry */
+.neural-readout .dopamine-readout {
+  color: #ffcf57;
+  border-color: rgba(255, 207, 87, .55);
+  background: rgba(255, 207, 87, .06);
+}

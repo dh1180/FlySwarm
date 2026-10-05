@@ -43,6 +43,25 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 
 주변 개체 탐색에는 Spatial Hash를 사용하므로 모든 개체 쌍을 비교하지 않습니다.
 
+## 🧪 Dopamine-style Boss Learning
+
+보스의 전체 Connectome graph 자체는 고정합니다.
+
+대신 Connectome에서 나온 neural output을 실제 게임 행동으로 변환하는 정책에
+보상학습을 적용합니다.
+
+- 플레이어에게 피해를 주면 양의 reward
+- 보스가 피해를 입으면 음의 reward
+- 보스가 쓰러지면 큰 negative reward
+- 최근 행동의 eligibility trace를 이용해 reward와 행동을 연결
+- 작은 Gaussian exploration을 유지해 새로운 행동을 탐색
+- 학습 가중치, reward 통계, generation을 LocalStorage에 저장
+- 다음 보스 및 다음 플레이 세션이 이전 학습 결과를 이어서 사용
+
+이 구조는 실제 초파리의 도파민 회로를 그대로 재현한 것이 아니라,
+Drosophila에서 dopamine이 reinforcement / associative learning에 관여한다는
+아이디어를 게임용 reward-modulated policy에 적용한 것입니다.
+
 ## 🧬 Full-Connectome Boss
 
 보스는 일반몹의 Utility AI를 사용하지 않습니다.

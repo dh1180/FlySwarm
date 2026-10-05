@@ -129,11 +129,23 @@ export type WholeBrainSnapshot = {
   output: WholeBrainOutput;
 };
 
+export type DopamineHud = {
+  generation: number;
+  lifetimeReward: number;
+  positiveEvents: number;
+  negativeEvents: number;
+  updates: number;
+  baseline: number;
+  exploration: number;
+  recentReward: number;
+};
+
 export type BossHud = {
   active: boolean;
   hp: number;
   maxHp: number;
   brain: WholeBrainSnapshot;
+  dopamine: DopamineHud;
 };
 
 export type HudSnapshot = {

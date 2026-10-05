@@ -1,5 +1,6 @@
 import { SpatialHash } from './SpatialHash';
 import { WholeBrainController } from './connectome/WholeBrainController';
+import { DopaminePolicy } from './learning/DopaminePolicy';
 import type {
   Bullet,
   FlyAgent,
@@ -78,6 +79,7 @@ export class GameEngine {
   private readonly keys = new Set<string>();
   private readonly callbacks: Callbacks;
   private readonly brain = new WholeBrainController();
+  private readonly dopamine = new DopaminePolicy();
 
   private raf = 0;
   private running = false;
@@ -97,6 +99,10 @@ export class GameEngine {
   private selectedId: number | null = null;
   private nextBossWave = 3;
   private bossBrainTimer = 0;
+  private bossPolicyTurn = 0;
+  private bossPolicyDrive = 0;
+  private bossRewardBuffer = 0;
+  private bossPenaltyBuffer = 0;
 
   private player: Player = this.makePlayer();
   private flies: FlyAgent[] = [];
@@ -156,6 +162,10 @@ export class GameEngine {
     this.selectedId = null;
     this.nextBossWave = 3;
     this.bossBrainTimer = 0;
+    this.bossPolicyTurn = 0;
+    this.bossPolicyDrive = 0;
+    this.bossRewardBuffer = 0;
+    this.bossPenaltyBuffer = 0;
     this.pausedForUpgrade = false;
     this.gameOver = false;
     this.swarmGenome = {
@@ -555,6 +565,10 @@ export class GameEngine {
       pulseCooldown: 1.6,
     };
     this.bossBrainTimer = 0;
+    this.bossPolicyTurn = 0;
+    this.bossPolicyDrive = 0;
+    this.bossRewardBuffer = 0;
+    this.bossPenaltyBuffer = 0;
     this.brain.reset();
   }
 
@@ -569,6 +583,18 @@ export class GameEngine {
 
     if (this.bossBrainTimer >= 0.32) {
       this.bossBrainTimer = 0;
+
+      const reward = this.bossRewardBuffer - this.bossPenaltyBuffer;
+      if (Math.abs(reward) > 0.0001) {
+        this.dopamine.reward(reward);
+      }
+      this.bossRewardBuffer = 0;
+      this.bossPenaltyBuffer = 0;
+
+      const policyAction = this.dopamine.act(brain.output);
+      this.bossPolicyTurn = policyAction.turn;
+      this.bossPolicyDrive = policyAction.drive;
+
       const dx = this.player.x - boss.x;
       const dy = this.player.y - boss.y;
       const distance = Math.hypot(dx, dy) || 1;
@@ -603,20 +629,15 @@ export class GameEngine {
     const dy = this.player.y - boss.y;
     const distance = Math.hypot(dx, dy) || 1;
 
-    boss.heading += out.turn * 4.2 * dt;
+    boss.heading += this.bossPolicyTurn * 4.2 * dt;
     const forward = {
       x: Math.cos(boss.heading),
       y: Math.sin(boss.heading),
     };
 
-    // Descending-neuron readouts dominate locomotion; no hidden chase vector.
-    let drive =
-      out.forward * 230 +
-      out.wing * 85 +
-      out.escape * 260 -
-      out.stop * 150 -
-      out.backward * 185;
-    drive = clamp(drive, -125, 310);
+    // The connectome produces the neural features; the dopamine policy learns
+    // which mixtures of those features are useful for damaging this player.
+    const drive = this.bossPolicyDrive * 310;
 
     const desiredX = forward.x * drive;
     const desiredY = forward.y * drive;
@@ -639,7 +660,7 @@ export class GameEngine {
     }
 
     if (distance < boss.radius + this.player.radius + 8) {
-      this.damagePlayer((25 + this.wave * 1.8) * dt);
+      this.damagePlayerFromBoss((25 + this.wave * 1.8) * dt);
     }
 
     if (
@@ -649,7 +670,7 @@ export class GameEngine {
       boss.pulseCooldown = 2.4;
       this.bossPulseFlash = 0.42;
       if (distance < 205) {
-        this.damagePlayer(10 + this.wave * 1.4);
+        this.damagePlayerFromBoss(10 + this.wave * 1.4);
       }
     }
   }
@@ -729,12 +750,12 @@ export class GameEngine {
           this.boss.radius + bullet.radius
       ) {
         bullet.hit.add(BOSS_HIT_ID);
-        this.boss.hp -= bullet.damage * this.player.bossDamage;
+        this.damageBoss(bullet.damage * this.player.bossDamage);
         const push = normalize(bullet.vx, bullet.vy);
-        this.boss.vx += push.x * this.player.knockback * 0.15;
-        this.boss.vy += push.y * this.player.knockback * 0.15;
-
-        if (this.boss.hp <= 0) this.killBoss();
+        if (this.boss) {
+          this.boss.vx += push.x * this.player.knockback * 0.15;
+          this.boss.vy += push.y * this.player.knockback * 0.15;
+        }
 
         if (bullet.pierce > 0) bullet.pierce -= 1;
         else {
@@ -790,12 +811,12 @@ export class GameEngine {
           Math.hypot(this.boss.x - x, this.boss.y - y) <
             this.boss.radius + 10
         ) {
-          this.boss.hp -=
+          this.damageBoss(
             this.player.orbitalDamage *
-            4 *
-            dt *
-            this.player.bossDamage;
-          if (this.boss.hp <= 0) this.killBoss();
+              4 *
+              dt *
+              this.player.bossDamage,
+          );
         }
       }
     }
@@ -824,9 +845,9 @@ export class GameEngine {
             this.boss.y - this.player.y,
           ) <= radius + this.boss.radius
         ) {
-          this.boss.hp -=
-            this.player.novaDamage * this.player.bossDamage;
-          if (this.boss.hp <= 0) this.killBoss();
+          this.damageBoss(
+            this.player.novaDamage * this.player.bossDamage,
+          );
         }
       }
     }
@@ -849,6 +870,8 @@ export class GameEngine {
   private killBoss() {
     if (!this.boss) return;
     const { x, y } = this.boss;
+    this.dopamine.reward(-2);
+    this.dopamine.nextGeneration();
     this.kills += 50;
     for (let i = 0; i < 26; i += 1) {
       this.orbs.push({
@@ -981,6 +1004,26 @@ export class GameEngine {
     this.evolutionBanner = 3.1;
   }
 
+  private damageBoss(amount: number) {
+    if (!this.boss || amount <= 0) return;
+    const boss = this.boss;
+    const actual = Math.min(boss.hp, amount);
+    boss.hp -= actual;
+    this.bossPenaltyBuffer += (actual / boss.maxHp) * 7.5;
+    if (boss.hp <= 0) this.killBoss();
+  }
+
+  private damagePlayerFromBoss(amount: number) {
+    if (amount <= 0) return;
+    const actual = amount * (1 - this.player.armor);
+    this.player.hp -= actual;
+    this.bossRewardBuffer += actual / 8;
+
+    if (this.player.hp <= 0) {
+      this.dopamine.reward(2.5);
+    }
+  }
+
   private damagePlayer(amount: number) {
     this.player.hp -= amount * (1 - this.player.armor);
   }
@@ -1021,6 +1064,7 @@ export class GameEngine {
             hp: this.boss.hp,
             maxHp: this.boss.maxHp,
             brain: connectome,
+            dopamine: this.dopamine.getSnapshot(),
           }
         : null,
     });
