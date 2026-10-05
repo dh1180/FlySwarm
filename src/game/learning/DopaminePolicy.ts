@@ -45,8 +45,8 @@ const gaussian = () => {
 };
 
 export class DopaminePolicy {
-  private learned = PRETRAINED_DOPAMINE_POLICY.learned.map((row) =>
-    Array.from(row),
+  private learned: number[][] = PRETRAINED_DOPAMINE_POLICY.learned.map((row) =>
+    Array.from(row, (value) => Number(value)),
   );
   private eligibility = Array.from({ length: OUTPUTS }, () =>
     Array.from({ length: INPUTS }, () => 0),
