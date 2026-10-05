@@ -2671,6 +2671,7 @@ export class GameEngine {
     this.drawPlayer();
     this.drawPlayerAbilities();
     this.drawParticles();
+    this.drawRingFx();
     this.drawLightningFx();
     this.drawAim();
     ctx.restore();
@@ -3074,6 +3075,27 @@ export class GameEngine {
         particle.size,
         particle.size,
       );
+    }
+    ctx.restore();
+  }
+
+  private drawRingFx() {
+    const ctx = this.ctx;
+    ctx.save();
+    for (const fx of this.ringFx) {
+      const progress = 1 - clamp(fx.life / fx.maxLife, 0, 1);
+      const radius =
+        fx.startRadius +
+        (fx.endRadius - fx.startRadius) * progress;
+      const alpha = 1 - progress;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = fx.color;
+      ctx.shadowColor = fx.color;
+      ctx.shadowBlur = 14 * alpha;
+      ctx.lineWidth = Math.max(1, fx.lineWidth * (1 - progress * 0.45));
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, radius, 0, TAU);
+      ctx.stroke();
     }
     ctx.restore();
   }
