@@ -141,7 +141,7 @@ export default function FlySwarmGame() {
         <div className="boss-strip">
           <div>
             <span>⚠ CONNECTOME ENTITY DETECTED</span>
-            <strong>FULL-BRAIN BOSS</strong>
+            <strong>{hud.boss.name}</strong>
           </div>
           <div className="boss-hp">
             <i
@@ -177,14 +177,24 @@ export default function FlySwarmGame() {
           {fullscreen ? 'EXIT FULLSCREEN' : 'PLAY FULLSCREEN'}
         </button>
 
+        {started && !gameOver && (
+          <div className="combat-controls">
+            <span>MOVE <b>WASD</b></span>
+            <span>AIM <b>MOUSE</b></span>
+            <span>LANCE <b>SPACE</b></span>
+            <span>THUNDER <b>E / RMB</b></span>
+          </div>
+        )}
+
         {!started && (
           <div className="game-overlay intro-overlay">
             <span className="fly-icon">🪰</span>
             <p>EVERY FLY THINKS. THE BOSS GETS THE WHOLE BRAIN.</p>
             <h2>SURVIVE<br/>THE SWARM.</h2>
             <p className="overlay-copy">
-              WASD / 방향키로 이동하세요. 공격은 자동입니다.<br/>
-              일반몹은 Utility AI, 보스는 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
+              WASD / 방향키로 이동하세요. 기본 공격은 자동입니다.<br/>
+              수동 Mutation 획득 후 마우스로 조준하고 SPACE로 Lance, E 또는 우클릭으로 지정 낙뢰를 사용할 수 있습니다.<br/>
+              일반몹은 5개 전투 아키타입의 Utility AI, 보스 3종은 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
               보스는 120,000-step 사전학습 정책에서 시작하고, 실제 플레이에서는 도파민형 보상으로 계속 미세조정됩니다.<br/>
               플레이어에게 피해를 주면 보상, 피격되면 패널티를 받으며 학습값은 다음 보스전에도 이어집니다.
             </p>
@@ -261,13 +271,14 @@ export default function FlySwarmGame() {
           <span>AGENT / CONNECTOME INSPECTOR</span>
           <p>
             일반 초파리를 클릭하면 Utility AI 성향을 확인할 수 있습니다.
-            전체뇌 보스의 신경 출력은 상단 보스 패널에서 표시됩니다.
+            Darter / Brute / Spitter / Bomber 등 개체 타입도 확인할 수 있습니다.
+            전체뇌 보스의 신경 출력과 Boss Archetype은 상단 보스 패널에서 표시됩니다.
           </p>
         </div>
 
         {hud.selected ? (
           <div className="agent-data">
-            <strong>FLY #{hud.selected.id}</strong>
+            <strong>{hud.selected.kind} #{hud.selected.id}</strong>
             <em>{hud.selected.decision}</em>
             <span>HP {Math.ceil(hud.selected.hp)} / {Math.ceil(hud.selected.maxHp)}</span>
             <span>Aggression {pct(hud.selected.genome.aggression)}</span>

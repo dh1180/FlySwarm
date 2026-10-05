@@ -4,15 +4,15 @@
 
 FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라우저 게임 프로젝트입니다.
 
-- 일반 초파리 수백 마리: 가벼운 **Utility AI + Steering Behavior**
-- 보스: FlyWire FAFB v783에서 파생된 **전체 source connectome + leaky integrate-and-fire(LIF) dynamics**
+- 일반 초파리 수백 마리: **5종 전투 아키타입 + Utility AI + Steering Behavior**
+- 보스: **3종 phenotype + FlyWire FAFB v783 전체 source connectome + LIF dynamics**
 
 ## 🎮 현재 구현
 
 - WASD / 방향키 이동
 - 가장 가까운 적 자동 공격
 - 경험치 Orb / 레벨업
-- 25종 레벨업 Mutation
+- 31종 레벨업 Mutation
 - 웨이브 증가 및 군집 진화
 - 초파리 개체별 personality genome
 - Spatial Hash 기반 근접 탐색
@@ -40,6 +40,14 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - `FLEE`
 - `SWARM`
 - `WANDER`
+
+잡몹 아키타입:
+
+- `DRONE` — 기본 군집형
+- `DARTER` — 빠르고 가벼운 돌진형
+- `BRUTE` — 느리지만 체력/접촉 피해가 높은 탱커형
+- `SPITTER` — 거리를 유지하며 원거리 탄환 발사
+- `BOMBER` — 플레이어에게 달려들어 근접 자폭
 
 주변 개체 탐색에는 Spatial Hash를 사용하므로 모든 개체 쌍을 비교하지 않습니다.
 
@@ -125,6 +133,18 @@ Boss body controller
 
 신경 연결 가중치는 게임 중 학습시키거나 변경하지 않습니다. 게임은 고정 connectome 위에서 LIF state를 진행하고, sensory input과 motor readout을 게임 세계에 연결합니다.
 
+### Boss archetypes
+
+모든 보스는 동일한 Full Connectome 계열 neural controller와 pretrained dopamine policy를 공유하지만,
+몸체 파라미터와 공격 phenotype은 다릅니다.
+
+- **NEURAL HUNTER** — 빠른 이동과 집중 3연발
+- **STORM BRAIN** — 넓은 neural pulse와 방사형 탄막
+- **SWARM QUEEN** — 높은 체력과 Darter / Spitter 소환
+
+즉 보스별 차이는 별도의 추적 AI를 추가한 것이 아니라,
+동일한 connectome-derived locomotion 위에 게임용 공격 phenotype을 분리한 구조입니다.
+
 ## ⚡ Whole-brain runtime
 
 30MB급 전체 연결 graph를 메인 Canvas thread에서 돌리면 게임 프레임이 끊길 수 있으므로 Full-Connectome Boss는 별도 Web Worker에서 실행합니다.
@@ -198,6 +218,29 @@ Main Game Thread
 - Adrenaline Loop — low-HP move / fire speed
 - Long Axon — longer projectile lifetime
 - Neural Overclock — damage / fire rate / move speed
+- Voluntary Motor Lance — **SPACE**, 마우스 방향 수동 관통탄
+- Cortical Thunder — **E / 우클릭**, 마우스 위치 지정 낙뢰
+- Synaptic Carpet — 조준 방향에 주기적 지속 피해 장판
+- Glial Meteor — 강한 적 위치에 주기적 광역 낙하 공격
+- Recurrent Circuit — 적중 시 추가 투사체 ricochet
+- Apoptosis Trigger — 저체력 적 추가 처형 피해
+
+## ✨ Combat VFX / Controls
+
+- Mouse world-space aiming
+- `SPACE`: Voluntary Motor Lance
+- `E` 또는 우클릭: Cortical Thunder
+- 잡몹 종류별 색상 / 크기 / glow 차별화
+- 장판 radial VFX
+- lightning zig-zag trail
+- hit / death particles
+- boss spawn / death burst
+- screen shake
+- player damage flash
+- enemy projectile glow
+- 수동 스킬 cooldown HUD
+
+수동 스킬은 해당 Mutation을 획득한 뒤 활성화됩니다.
 
 ## 🛠 Stack
 

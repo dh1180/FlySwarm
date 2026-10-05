@@ -1,4 +1,5 @@
 export type FlyDecision = 'CHASE' | 'FLEE' | 'SWARM' | 'WANDER';
+export type FlyKind = 'DRONE' | 'DARTER' | 'BRUTE' | 'SPITTER' | 'BOMBER';
 
 export type Genome = {
   aggression: number;
@@ -10,6 +11,7 @@ export type Genome = {
 
 export type FlyAgent = {
   id: number;
+  kind: FlyKind;
   x: number;
   y: number;
   vx: number;
@@ -20,6 +22,7 @@ export type FlyAgent = {
   phase: number;
   genome: Genome;
   decision: FlyDecision;
+  attackCooldown: number;
 };
 
 export type Bullet = {
@@ -33,6 +36,7 @@ export type Bullet = {
   pierce: number;
   hit: Set<number>;
   critical: boolean;
+  style?: 'NORMAL' | 'LANCE';
 };
 
 export type Orb = {
@@ -83,6 +87,16 @@ export type Player = {
   shieldRegen: number;
   shieldCooldown: number;
   adrenaline: number;
+  manualLanceLevel: number;
+  manualLanceCooldown: number;
+  lightningLevel: number;
+  lightningCooldown: number;
+  fieldLevel: number;
+  fieldTimer: number;
+  meteorLevel: number;
+  meteorTimer: number;
+  ricochetLevel: number;
+  executeLevel: number;
 };
 
 export type UpgradeKey =
@@ -110,7 +124,13 @@ export type UpgradeKey =
   | 'shield'
   | 'adrenaline'
   | 'bulletLife'
-  | 'overclock';
+  | 'overclock'
+  | 'manualLance'
+  | 'targetLightning'
+  | 'synapticField'
+  | 'meteor'
+  | 'ricochet'
+  | 'execute';
 
 export type UpgradeOption = {
   key: UpgradeKey;
@@ -121,6 +141,7 @@ export type UpgradeOption = {
 
 export type SelectedFly = {
   id: number;
+  kind: FlyKind;
   decision: FlyDecision;
   genome: Genome;
   hp: number;
@@ -162,6 +183,8 @@ export type DopamineHud = {
 
 export type BossHud = {
   active: boolean;
+  kind: 'NEURAL_HUNTER' | 'STORM_BRAIN' | 'SWARM_QUEEN';
+  name: string;
   hp: number;
   maxHp: number;
   brain: WholeBrainSnapshot;
