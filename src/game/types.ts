@@ -72,6 +72,17 @@ export type Player = {
   novaDamage: number;
   xpGain: number;
   bossDamage: number;
+  bulletLife: number;
+  killHeal: number;
+  auraDamage: number;
+  auraRadius: number;
+  chainChance: number;
+  chainDamage: number;
+  shield: number;
+  shieldMax: number;
+  shieldRegen: number;
+  shieldCooldown: number;
+  adrenaline: number;
 };
 
 export type UpgradeKey =
@@ -91,7 +102,15 @@ export type UpgradeKey =
   | 'orbital'
   | 'nova'
   | 'xpGain'
-  | 'bossDamage';
+  | 'bossDamage'
+  | 'critPower'
+  | 'leech'
+  | 'toxinAura'
+  | 'chain'
+  | 'shield'
+  | 'adrenaline'
+  | 'bulletLife'
+  | 'overclock';
 
 export type UpgradeOption = {
   key: UpgradeKey;
@@ -138,6 +157,7 @@ export type DopamineHud = {
   baseline: number;
   exploration: number;
   recentReward: number;
+  pretrainedEpisodes: number;
 };
 
 export type BossHud = {
