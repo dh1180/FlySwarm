@@ -1439,7 +1439,11 @@ export class GameEngine {
         1,
       );
       const proximity = clamp(1 - distance / 1050, 0, 1);
-      const threat = clamp(0.08 + proximity * 0.62 + bulletThreat * 0.78, 0, 1);
+      const threat = clamp(
+        0.08 + proximity * 0.62 + bulletThreat * 0.78,
+        0,
+        1,
+      );
       this.brain.step(side, threat);
     }
 
@@ -1448,7 +1452,7 @@ export class GameEngine {
     const dy = this.player.y - boss.y;
     const distance = Math.hypot(dx, dy) || 1;
 
-    boss.heading += this.bossPolicyTurn * 4.2 * dt;
+    boss.heading += this.bossPolicyTurn * 4.2 * boss.speedScale * dt;
     const forward = {
       x: Math.cos(boss.heading),
       y: Math.sin(boss.heading),
@@ -1459,20 +1463,43 @@ export class GameEngine {
         ? 1.24
         : boss.kind === 'STORM_BRAIN'
           ? 0.96
-          : 0.78;
-    let drive = this.bossPolicyDrive * 310 * kindDrive;
-    if (boss.kind === 'NEURAL_HUNTER' && distance < 330 && out.forward > 0.3) {
+          : boss.kind === 'SWARM_QUEEN'
+            ? 0.8
+            : boss.kind === 'GLIAL_TITAN'
+              ? 0.74
+              : 1.08;
+
+    let drive =
+      this.bossPolicyDrive *
+      320 *
+      kindDrive *
+      boss.speedScale;
+
+    if (
+      (boss.kind === 'NEURAL_HUNTER' ||
+        boss.kind === 'CONNECTOME_APEX') &&
+      distance < 350 &&
+      out.forward > 0.3
+    ) {
       drive *= 1.28;
     }
 
     const desiredX = forward.x * drive;
     const desiredY = forward.y * drive;
-
+    const baseResponse =
+      boss.kind === 'NEURAL_HUNTER'
+        ? 5
+        : boss.kind === 'CONNECTOME_APEX'
+          ? 4.7
+          : boss.kind === 'STORM_BRAIN'
+            ? 4
+            : 3.65;
     const responsiveness = clamp(
-      dt * (boss.kind === 'NEURAL_HUNTER' ? 5 : 3.8),
+      dt * baseResponse * boss.speedScale,
       0,
       1,
     );
+
     boss.vx += (desiredX - boss.vx) * responsiveness;
     boss.vy += (desiredY - boss.vy) * responsiveness;
     boss.x += boss.vx * dt;
@@ -1491,92 +1518,324 @@ export class GameEngine {
 
     if (distance < boss.radius + this.player.radius + 8) {
       const contactScale =
-        boss.kind === 'SWARM_QUEEN' ? 1.28 : boss.kind === 'NEURAL_HUNTER' ? 1.12 : 1;
-      this.damagePlayerFromBoss((22 + this.wave * 1.5) * contactScale * dt);
+        boss.kind === 'SWARM_QUEEN'
+          ? 1.28
+          : boss.kind === 'GLIAL_TITAN'
+            ? 1.48
+            : boss.kind === 'CONNECTOME_APEX'
+              ? 1.38
+              : boss.kind === 'NEURAL_HUNTER'
+                ? 1.12
+                : 1;
+      this.damagePlayerFromBoss(
+        (24 + this.wave * 1.65) *
+          contactScale *
+          boss.damageScale *
+          dt,
+      );
     }
 
     if (
       boss.pulseCooldown <= 0 &&
       (out.activity > 0.5 || out.wing > 0.46)
     ) {
-      const pulseRadius = boss.kind === 'STORM_BRAIN' ? 250 : 205;
-      boss.pulseCooldown = boss.kind === 'STORM_BRAIN' ? 1.75 : 2.35;
+      const pulseRadius = this.getBossPulseRadius(boss);
+      const pulseBaseCooldown =
+        boss.kind === 'STORM_BRAIN'
+          ? 1.7
+          : boss.kind === 'GLIAL_TITAN'
+            ? 1.85
+            : boss.kind === 'CONNECTOME_APEX'
+              ? 1.5
+              : 2.25;
+      const pulseDamageScale =
+        boss.kind === 'GLIAL_TITAN'
+          ? 1.28
+          : boss.kind === 'CONNECTOME_APEX'
+            ? 1.42
+            : boss.kind === 'STORM_BRAIN'
+              ? 1.18
+              : 1;
+
+      boss.pulseCooldown =
+        pulseBaseCooldown * boss.cooldownScale;
       this.bossPulseFlash = 0.5;
-      this.screenShake = Math.max(this.screenShake, 5);
-      this.spawnParticles(boss.x, boss.y, '#ff5b63', 18, 120);
+      this.screenShake = Math.max(this.screenShake, 5 + boss.stage);
+      this.spawnParticles(
+        boss.x,
+        boss.y,
+        this.getBossColor(boss.kind),
+        18 + boss.stage * 2,
+        120 + boss.stage * 8,
+      );
+
       if (distance < pulseRadius) {
         this.damagePlayerFromBoss(
-          (9 + this.wave * 1.15) *
-            (boss.kind === 'STORM_BRAIN' ? 1.18 : 1),
+          (10 + this.wave * 1.25) *
+            pulseDamageScale *
+            boss.damageScale,
         );
       }
     }
 
-    if (boss.specialCooldown <= 0) {
-      if (boss.kind === 'STORM_BRAIN') {
-        boss.specialCooldown = 3.1;
-        for (let i = 0; i < 10; i += 1) {
-          const angle = (i / 10) * TAU + this.time * 0.35;
-          this.enemyShots.push({
-            x: boss.x,
-            y: boss.y,
-            vx: Math.cos(angle) * (175 + this.wave * 3),
-            vy: Math.sin(angle) * (175 + this.wave * 3),
-            radius: 6,
-            damage: 8 + this.wave * 0.55,
-            life: 4.8,
-            color: '#b678ff',
-            bossOwned: true,
-          });
-        }
-        this.callbacks.onSound('bossStrikeCharge');
-        this.bossStrikes.push({
-          x: this.player.x,
-          y: this.player.y,
-          timer: 0.55,
-          maxTimer: 0.55,
-          radius: 76,
-          damage: 13 + this.wave * 0.85,
+    if (boss.specialCooldown > 0) return;
+
+    if (boss.kind === 'NEURAL_HUNTER') {
+      boss.specialCooldown = 2.55 * boss.cooldownScale;
+      for (let i = -1; i <= 1; i += 1) {
+        const angle = Math.atan2(dy, dx) + i * 0.18;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (270 + this.wave * 4.5) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (270 + this.wave * 4.5) *
+            boss.speedScale,
+          radius: 5.5,
+          damage:
+            (8.5 + this.wave * 0.58) * boss.damageScale,
+          life: 3.5,
+          color: '#ffcf57',
+          bossOwned: true,
         });
-        this.spawnRing(
-          this.player.x,
-          this.player.y,
-          18,
-          76,
-          '#b678ff',
-          0.55,
-          3,
-        );
-        this.screenShake = Math.max(this.screenShake, 4);
-      } else if (boss.kind === 'SWARM_QUEEN') {
-        boss.specialCooldown = 4.8;
-        for (let i = 0; i < 7; i += 1) {
-          const minion = this.createFly();
-          minion.x = clamp(boss.x + randomRange(-90, 90), 20, WORLD_WIDTH - 20);
-          minion.y = clamp(boss.y + randomRange(-90, 90), 20, WORLD_HEIGHT - 20);
-          minion.kind = i % 3 === 0 ? 'SPITTER' : 'DARTER';
-          minion.hp *= 1.25;
-          minion.maxHp = minion.hp;
-          this.flies.push(minion);
-        }
-        this.spawnParticles(boss.x, boss.y, '#c7ff45', 26, 135);
-      } else {
-        boss.specialCooldown = 2.7;
-        for (let i = -1; i <= 1; i += 1) {
-          const angle = Math.atan2(dy, dx) + i * 0.18;
-          this.enemyShots.push({
-            x: boss.x,
-            y: boss.y,
-            vx: Math.cos(angle) * (250 + this.wave * 4),
-            vy: Math.sin(angle) * (250 + this.wave * 4),
-            radius: 5,
-            damage: 7 + this.wave * 0.5,
-            life: 3.4,
-            color: '#ffcf57',
-            bossOwned: true,
-          });
-        }
       }
+      return;
+    }
+
+    if (boss.kind === 'STORM_BRAIN') {
+      boss.specialCooldown = 2.95 * boss.cooldownScale;
+      const shotCount = 12 + boss.stage;
+      for (let i = 0; i < shotCount; i += 1) {
+        const angle =
+          (i / shotCount) * TAU + this.time * 0.35;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (190 + this.wave * 3.5) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (190 + this.wave * 3.5) *
+            boss.speedScale,
+          radius: 6,
+          damage:
+            (9 + this.wave * 0.62) * boss.damageScale,
+          life: 4.8,
+          color: '#b678ff',
+          bossOwned: true,
+        });
+      }
+
+      this.callbacks.onSound('bossStrikeCharge');
+      this.bossStrikes.push({
+        x: this.player.x,
+        y: this.player.y,
+        timer: 0.5,
+        maxTimer: 0.5,
+        radius: 82,
+        damage:
+          (14 + this.wave * 0.9) * boss.damageScale,
+        color: '#b678ff',
+      });
+      this.spawnRing(
+        this.player.x,
+        this.player.y,
+        18,
+        82,
+        '#b678ff',
+        0.5,
+        3,
+      );
+      return;
+    }
+
+    if (boss.kind === 'SWARM_QUEEN') {
+      boss.specialCooldown = 4.15 * boss.cooldownScale;
+      const minionCount = 7 + boss.stage;
+      for (let i = 0; i < minionCount; i += 1) {
+        const minion = this.createFly();
+        minion.x = clamp(
+          boss.x + randomRange(-105, 105),
+          20,
+          WORLD_WIDTH - 20,
+        );
+        minion.y = clamp(
+          boss.y + randomRange(-105, 105),
+          20,
+          WORLD_HEIGHT - 20,
+        );
+        minion.kind = i % 3 === 0 ? 'SPITTER' : 'DARTER';
+        minion.hp *= 1.2 + boss.stage * 0.12;
+        minion.maxHp = minion.hp;
+        this.flies.push(minion);
+      }
+
+      for (let i = 0; i < 6; i += 1) {
+        const angle = (i / 6) * TAU + boss.heading;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx: Math.cos(angle) * 210 * boss.speedScale,
+          vy: Math.sin(angle) * 210 * boss.speedScale,
+          radius: 6,
+          damage: (8 + this.wave * 0.55) * boss.damageScale,
+          life: 4,
+          color: '#c7ff45',
+          bossOwned: true,
+        });
+      }
+      this.spawnParticles(boss.x, boss.y, '#c7ff45', 30, 150);
+      return;
+    }
+
+    if (boss.kind === 'GLIAL_TITAN') {
+      boss.specialCooldown = 3.55 * boss.cooldownScale;
+      const shotCount = 14;
+      for (let i = 0; i < shotCount; i += 1) {
+        const angle = (i / shotCount) * TAU + this.time * 0.18;
+        const speed = (145 + (i % 2) * 55) * boss.speedScale;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: i % 2 === 0 ? 8 : 6,
+          damage:
+            (10.5 + this.wave * 0.68) * boss.damageScale,
+          life: 5.4,
+          color: '#55ffc7',
+          bossOwned: true,
+        });
+      }
+
+      this.callbacks.onSound('bossStrikeCharge');
+      for (let i = 0; i < 3; i += 1) {
+        const angle = (i / 3) * TAU + this.time * 0.3;
+        const x = clamp(
+          this.player.x + Math.cos(angle) * 115,
+          70,
+          WORLD_WIDTH - 70,
+        );
+        const y = clamp(
+          this.player.y + Math.sin(angle) * 115,
+          70,
+          WORLD_HEIGHT - 70,
+        );
+        this.bossStrikes.push({
+          x,
+          y,
+          timer: 0.68,
+          maxTimer: 0.68,
+          radius: 94,
+          damage:
+            (13 + this.wave * 0.82) * boss.damageScale,
+          color: '#55ffc7',
+        });
+        this.spawnRing(x, y, 20, 94, '#55ffc7', 0.68, 4);
+      }
+      return;
+    }
+
+    boss.specialCooldown = 2.7 * boss.cooldownScale;
+
+    const radialCount = 18;
+    for (let i = 0; i < radialCount; i += 1) {
+      const angle =
+        (i / radialCount) * TAU + this.time * 0.46;
+      this.enemyShots.push({
+        x: boss.x,
+        y: boss.y,
+        vx:
+          Math.cos(angle) *
+          (215 + this.wave * 4) *
+          boss.speedScale,
+        vy:
+          Math.sin(angle) *
+          (215 + this.wave * 4) *
+          boss.speedScale,
+        radius: 6.5,
+        damage:
+          (9.5 + this.wave * 0.65) * boss.damageScale,
+        life: 4.5,
+        color: '#ff5b63',
+        bossOwned: true,
+      });
+    }
+
+    for (let i = -2; i <= 2; i += 1) {
+      const angle = Math.atan2(dy, dx) + i * 0.13;
+      this.enemyShots.push({
+        x: boss.x,
+        y: boss.y,
+        vx:
+          Math.cos(angle) *
+          (315 + this.wave * 5) *
+          boss.speedScale,
+        vy:
+          Math.sin(angle) *
+          (315 + this.wave * 5) *
+          boss.speedScale,
+        radius: 5.5,
+        damage:
+          (10.5 + this.wave * 0.7) * boss.damageScale,
+        life: 3.6,
+        color: '#ffffff',
+        bossOwned: true,
+      });
+    }
+
+    this.callbacks.onSound('bossStrikeCharge');
+    const apexOffsets = [
+      { x: 0, y: 0 },
+      { x: 125, y: -70 },
+      { x: -125, y: 70 },
+    ];
+    for (const offset of apexOffsets) {
+      const x = clamp(
+        this.player.x + offset.x,
+        80,
+        WORLD_WIDTH - 80,
+      );
+      const y = clamp(
+        this.player.y + offset.y,
+        80,
+        WORLD_HEIGHT - 80,
+      );
+      this.bossStrikes.push({
+        x,
+        y,
+        timer: 0.46,
+        maxTimer: 0.46,
+        radius: 88,
+        damage:
+          (15 + this.wave * 0.95) * boss.damageScale,
+        color: '#ff5b63',
+      });
+      this.spawnRing(x, y, 18, 88, '#ff5b63', 0.46, 4);
+    }
+
+    for (let i = 0; i < 4; i += 1) {
+      const minion = this.createFly();
+      minion.x = clamp(
+        boss.x + randomRange(-120, 120),
+        20,
+        WORLD_WIDTH - 20,
+      );
+      minion.y = clamp(
+        boss.y + randomRange(-120, 120),
+        20,
+        WORLD_HEIGHT - 20,
+      );
+      minion.kind = i % 2 === 0 ? 'BOMBER' : 'SPITTER';
+      minion.hp *= 1.7;
+      minion.maxHp = minion.hp;
+      this.flies.push(minion);
     }
   }
 
