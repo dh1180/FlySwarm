@@ -1177,3 +1177,71 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
   color: #ffffff;
   border-color: #8c99a7;
 }
+
+
+/* Build 009: procedural neural audio controls */
+.audio-controls {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.audio-toggle {
+  min-height: 31px;
+  border: 1px solid #35404d;
+  background: #0a0f15;
+  color: #7f8a96;
+  padding: 0 9px;
+  font-family: inherit;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+.audio-toggle b {
+  color: inherit;
+  font-size: inherit;
+}
+.audio-toggle.on {
+  border-color: #4a6425;
+  color: var(--acid);
+  background: rgba(199,255,69,.045);
+}
+.audio-toggle.off {
+  border-color: #3a414a;
+  color: #69737e;
+}
+.audio-toggle:hover {
+  border-color: var(--cyan);
+  color: #ffffff;
+}
+.audio-toggle:focus-visible {
+  outline: 1px solid var(--cyan);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1050px) {
+  .topbar-actions {
+    flex-wrap: wrap;
+  }
+  .audio-controls {
+    order: 2;
+  }
+  .topbar-stats {
+    width: 100%;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  .audio-controls {
+    order: 0;
+  }
+  .audio-toggle {
+    min-height: 34px;
+    padding: 0 11px;
+  }
+}
