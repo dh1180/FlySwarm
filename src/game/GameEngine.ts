@@ -65,6 +65,14 @@ const upgradeCatalog: UpgradeOption[] = [
   { key: 'nova', title: 'Action Potential Nova', description: '주기적인 광역 신경 펄스 획득/강화', rarity: 'NEURAL' },
   { key: 'xpGain', title: 'Memory Consolidation', description: '경험치 획득량 +25%', rarity: 'RARE' },
   { key: 'bossDamage', title: 'Connectome Breaker', description: '전체뇌 보스 피해량 +25%', rarity: 'NEURAL' },
+  { key: 'critPower', title: 'Spike Burst', description: '치명타 배율 +0.45', rarity: 'RARE' },
+  { key: 'leech', title: 'Hemolymph Leech', description: '초파리 처치 시 체력 회복', rarity: 'RARE' },
+  { key: 'toxinAura', title: 'Neurotoxin Cloud', description: '주변 적에게 지속 피해 오라', rarity: 'NEURAL' },
+  { key: 'chain', title: 'Chain Synapse', description: '명중 시 주변 적에게 연쇄 신호', rarity: 'NEURAL' },
+  { key: 'shield', title: 'Refractory Shield', description: '재생되는 신경 보호막 획득', rarity: 'RARE' },
+  { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력에서 이동/공격 속도 증가', rarity: 'RARE' },
+  { key: 'bulletLife', title: 'Long Axon', description: '투사체 생존시간 +30%', rarity: 'COMMON' },
+  { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속을 동시에 강화', rarity: 'NEURAL' },
 ];
 
 type Callbacks = {
@@ -247,6 +255,41 @@ export class GameEngine {
       case 'bossDamage':
         this.player.bossDamage *= 1.25;
         break;
+      case 'critPower':
+        this.player.critMultiplier += 0.45;
+        break;
+      case 'leech':
+        this.player.killHeal += 0.8;
+        break;
+      case 'toxinAura':
+        if (this.player.auraDamage <= 0) {
+          this.player.auraDamage = 14;
+          this.player.auraRadius = 105;
+        } else {
+          this.player.auraDamage *= 1.24;
+          this.player.auraRadius += 12;
+        }
+        break;
+      case 'chain':
+        this.player.chainChance = Math.min(0.72, this.player.chainChance + 0.18);
+        this.player.chainDamage = Math.min(0.8, Math.max(0.32, this.player.chainDamage + 0.08));
+        break;
+      case 'shield':
+        this.player.shieldMax += 22;
+        this.player.shield = this.player.shieldMax;
+        this.player.shieldRegen += 2.4;
+        break;
+      case 'adrenaline':
+        this.player.adrenaline = Math.min(4, this.player.adrenaline + 1);
+        break;
+      case 'bulletLife':
+        this.player.bulletLife *= 1.3;
+        break;
+      case 'overclock':
+        this.player.damage *= 1.14;
+        this.player.fireInterval = Math.max(0.07, this.player.fireInterval * 0.9);
+        this.player.speed *= 1.06;
+        break;
     }
     this.pausedForUpgrade = false;
   }
@@ -290,6 +333,17 @@ export class GameEngine {
       novaDamage: 0,
       xpGain: 1,
       bossDamage: 1,
+      bulletLife: 1.35,
+      killHeal: 0,
+      auraDamage: 0,
+      auraRadius: 0,
+      chainChance: 0,
+      chainDamage: 0,
+      shield: 0,
+      shieldMax: 0,
+      shieldRegen: 0,
+      shieldCooldown: 0,
+      adrenaline: 0,
     };
   }
 
@@ -367,10 +421,25 @@ export class GameEngine {
     if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) dx -= 1;
     if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) dx += 1;
 
+    const lowHpAdrenaline =
+      this.player.hp / this.player.maxHp < 0.35
+        ? 1 + this.player.adrenaline * 0.14
+        : 1;
+
     if (dx || dy) {
       const n = normalize(dx, dy);
-      this.player.x += n.x * this.player.speed * dt;
-      this.player.y += n.y * this.player.speed * dt;
+      this.player.x += n.x * this.player.speed * lowHpAdrenaline * dt;
+      this.player.y += n.y * this.player.speed * lowHpAdrenaline * dt;
+    }
+
+    if (this.player.shieldMax > 0) {
+      this.player.shieldCooldown = Math.max(0, this.player.shieldCooldown - dt);
+      if (this.player.shieldCooldown <= 0) {
+        this.player.shield = Math.min(
+          this.player.shieldMax,
+          this.player.shield + this.player.shieldRegen * dt,
+        );
+      }
     }
 
     if (this.player.regen > 0) {
@@ -676,7 +745,12 @@ export class GameEngine {
   }
 
   private updateShooting() {
-    if (this.shootTimer < this.player.fireInterval) return;
+    const lowHpAdrenaline =
+      this.player.hp / this.player.maxHp < 0.35
+        ? 1 + this.player.adrenaline * 0.18
+        : 1;
+    const currentFireInterval = this.player.fireInterval / lowHpAdrenaline;
+    if (this.shootTimer < currentFireInterval) return;
     if (!this.flies.length && !this.boss) return;
     this.shootTimer = 0;
 
@@ -725,7 +799,7 @@ export class GameEngine {
         vx: Math.cos(angle) * this.player.bulletSpeed,
         vy: Math.sin(angle) * this.player.bulletSpeed,
         radius: this.player.bulletSize,
-        life: 1.35,
+        life: this.player.bulletLife,
         damage:
           this.player.damage *
           (critical ? this.player.critMultiplier : 1),
@@ -778,6 +852,34 @@ export class GameEngine {
 
         if (fly.hp <= 0) this.killFly(fly);
 
+        if (
+          this.player.chainChance > 0 &&
+          Math.random() < this.player.chainChance
+        ) {
+          let chainTarget: FlyAgent | null = null;
+          let chainDistance = 135;
+          for (const other of this.spatial.query(fly.x, fly.y, 135)) {
+            if (
+              other.id === fly.id ||
+              other.hp <= 0 ||
+              bullet.hit.has(other.id)
+            ) {
+              continue;
+            }
+            const distance = Math.hypot(other.x - fly.x, other.y - fly.y);
+            if (distance < chainDistance) {
+              chainDistance = distance;
+              chainTarget = other;
+            }
+          }
+
+          if (chainTarget) {
+            bullet.hit.add(chainTarget.id);
+            chainTarget.hp -= bullet.damage * this.player.chainDamage;
+            if (chainTarget.hp <= 0) this.killFly(chainTarget);
+          }
+        }
+
         if (bullet.pierce > 0) {
           bullet.pierce -= 1;
         } else {
@@ -789,6 +891,35 @@ export class GameEngine {
   }
 
   private updateAbilities(dt: number) {
+    if (this.player.auraDamage > 0 && this.player.auraRadius > 0) {
+      for (const fly of this.spatial.query(
+        this.player.x,
+        this.player.y,
+        this.player.auraRadius,
+      )) {
+        if (fly.hp <= 0) continue;
+        if (
+          Math.hypot(fly.x - this.player.x, fly.y - this.player.y) <=
+          this.player.auraRadius
+        ) {
+          fly.hp -= this.player.auraDamage * dt;
+          if (fly.hp <= 0) this.killFly(fly);
+        }
+      }
+
+      if (
+        this.boss &&
+        Math.hypot(
+          this.boss.x - this.player.x,
+          this.boss.y - this.player.y,
+        ) <= this.player.auraRadius + this.boss.radius
+      ) {
+        this.damageBoss(
+          this.player.auraDamage * 0.7 * dt * this.player.bossDamage,
+        );
+      }
+    }
+
     if (this.player.orbitalCount > 0) {
       for (let i = 0; i < this.player.orbitalCount; i += 1) {
         const angle =
@@ -854,9 +985,15 @@ export class GameEngine {
   }
 
   private killFly(fly: FlyAgent) {
-    if (fly.hp > 0) return;
+    if (fly.hp > 0 || fly.hp <= -1000) return;
     this.kills += 1;
     fly.hp = -9999;
+    if (this.player.killHeal > 0) {
+      this.player.hp = Math.min(
+        this.player.maxHp,
+        this.player.hp + this.player.killHeal,
+      );
+    }
     this.orbs.push({
       x: fly.x,
       y: fly.y,
@@ -872,6 +1009,12 @@ export class GameEngine {
     const { x, y } = this.boss;
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
+    if (this.player.killHeal > 0) {
+      this.player.hp = Math.min(
+        this.player.maxHp,
+        this.player.hp + this.player.killHeal * 12,
+      );
+    }
     this.kills += 50;
     for (let i = 0; i < 26; i += 1) {
       this.orbs.push({
@@ -1013,10 +1156,26 @@ export class GameEngine {
     if (boss.hp <= 0) this.killBoss();
   }
 
+  private applyPlayerDamage(amount: number) {
+    if (amount <= 0) return 0;
+
+    let remaining = amount;
+    if (this.player.shield > 0) {
+      const absorbed = Math.min(this.player.shield, remaining);
+      this.player.shield -= absorbed;
+      remaining -= absorbed;
+      this.player.shieldCooldown = 4;
+    }
+
+    const actual = remaining * (1 - this.player.armor);
+    this.player.hp -= actual;
+    if (actual > 0) this.player.shieldCooldown = 4;
+    return actual;
+  }
+
   private damagePlayerFromBoss(amount: number) {
     if (amount <= 0) return;
-    const actual = amount * (1 - this.player.armor);
-    this.player.hp -= actual;
+    const actual = this.applyPlayerDamage(amount);
     this.bossRewardBuffer += actual / 8;
 
     if (this.player.hp <= 0) {
@@ -1025,7 +1184,7 @@ export class GameEngine {
   }
 
   private damagePlayer(amount: number) {
-    this.player.hp -= amount * (1 - this.player.armor);
+    this.applyPlayerDamage(amount);
   }
 
   private emitHud() {
@@ -1166,6 +1325,23 @@ export class GameEngine {
     ctx.beginPath();
     ctx.arc(0, 0, this.player.magnet, 0, TAU);
     ctx.stroke();
+
+    if (this.player.auraRadius > 0) {
+      ctx.strokeStyle = 'rgba(199,255,69,.18)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.player.auraRadius, 0, TAU);
+      ctx.stroke();
+    }
+
+    if (this.player.shieldMax > 0 && this.player.shield > 0) {
+      const shieldRatio = this.player.shield / this.player.shieldMax;
+      ctx.strokeStyle = `rgba(91,234,255,${0.25 + shieldRatio * 0.65})`;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.player.radius + 11, 0, TAU);
+      ctx.stroke();
+    }
 
     ctx.fillStyle = '#f5f7fa';
     ctx.beginPath();
