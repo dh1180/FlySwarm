@@ -5,10 +5,12 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { GameEngine } from '../game/GameEngine';
+import SkillIcon from './SkillIcon';
 import type {
   GameClearSnapshot,
   GameOverSnapshot,
   HudSnapshot,
+  RewardContext,
   SkillKey,
   UpgradeOption,
 } from '../game/types';
@@ -73,6 +75,11 @@ export default function FlySwarmGame() {
   const [fullscreen, setFullscreen] = useState(false);
   const [hud, setHud] = useState(initialHud);
   const [upgrades, setUpgrades] = useState<UpgradeOption[]>([]);
+  const [rewardContext, setRewardContext] = useState<RewardContext>({
+    source: 'LEVEL_UP',
+    title: 'LEVEL UP',
+    subtitle: 'CHOOSE A MUTATION',
+  });
   const [gameOver, setGameOver] = useState<GameOverSnapshot | null>(null);
   const [gameClear, setGameClear] = useState<GameClearSnapshot | null>(null);
   const [joystick, setJoystick] = useState({ x: 0, y: 0 });
@@ -82,7 +89,10 @@ export default function FlySwarmGame() {
 
     const engine = new GameEngine(canvasRef.current, {
       onHud: setHud,
-      onLevelUp: setUpgrades,
+      onLevelUp: (options, context) => {
+        setRewardContext(context);
+        setUpgrades(options);
+      },
       onGameOver: setGameOver,
       onGameClear: setGameClear,
     });
@@ -111,12 +121,22 @@ export default function FlySwarmGame() {
     setGameOver(null);
     setGameClear(null);
     setUpgrades([]);
+    setRewardContext({
+      source: 'LEVEL_UP',
+      title: 'LEVEL UP',
+      subtitle: 'CHOOSE A MUTATION',
+    });
     engineRef.current?.restart();
   };
 
   const chooseUpgrade = (key: SkillKey) => {
     engineRef.current?.applyUpgrade(key);
     setUpgrades([]);
+    setRewardContext({
+      source: 'LEVEL_UP',
+      title: 'LEVEL UP',
+      subtitle: 'CHOOSE A MUTATION',
+    });
   };
 
   const toggleFullscreen = async () => {
@@ -296,7 +316,7 @@ export default function FlySwarmGame() {
                 onClick={castMobileThunder}
                 disabled={!lightningReady}
               >
-                <span className="thunder-icon">⚡</span>
+                <SkillIcon skill="targetLightning" size={26} className="thunder-skill-icon" />
                 <span className="thunder-copy">
                   <b>THUNDER</b>
                   <small>
@@ -333,9 +353,13 @@ export default function FlySwarmGame() {
         )}
 
         {upgrades.length > 0 && (
-          <div className="game-overlay upgrade-overlay">
-            <span className="level-label">LEVEL {hud.level}</span>
-            <h2>CHOOSE A MUTATION</h2>
+          <div className={`game-overlay upgrade-overlay reward-${rewardContext.source.toLowerCase()}`}>
+            <span className="level-label">
+              {rewardContext.source === 'LEVEL_UP'
+                ? `LEVEL ${hud.level}`
+                : rewardContext.subtitle}
+            </span>
+            <h2>{rewardContext.title}</h2>
             <div className="upgrade-grid">
               {upgrades.map((upgrade) => (
                 <button
@@ -343,6 +367,9 @@ export default function FlySwarmGame() {
                   className={`upgrade-card rarity-${upgrade.rarity.toLowerCase()}`}
                   onClick={() => chooseUpgrade(upgrade.key)}
                 >
+                  <div className="upgrade-icon-wrap">
+                    <SkillIcon skill={upgrade.key} size={44} />
+                  </div>
                   <em>
                     {upgrade.rarity}
                     {upgrade.isEvolution
@@ -436,7 +463,10 @@ export default function FlySwarmGame() {
                 key={skill.key}
                 className={`skill-chip rarity-${skill.rarity.toLowerCase()} ${skill.evolved ? 'evolved' : ''}`}
               >
-                <span>{skill.title}</span>
+                <div className="skill-chip-main">
+                  <SkillIcon skill={skill.key} size={25} />
+                  <span>{skill.title}</span>
+                </div>
                 <b>
                   {skill.evolved
                     ? 'EVOLVED'
