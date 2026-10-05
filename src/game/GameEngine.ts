@@ -2563,31 +2563,3 @@ export class GameEngine {
     this.emitHud();
   };
 }
-};
-
-  private onKeyUp = (event: KeyboardEvent) => {
-    this.keys.delete(event.code);
-  };
-
-  private onCanvasClick = (event: MouseEvent) => {
-    const rect = this.canvas.getBoundingClientRect();
-    const camera = this.getCamera();
-    const x =
-      ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH + camera.x;
-    const y =
-      ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT + camera.y;
-
-    let nearest: FlyAgent | null = null;
-    let best = 34;
-    for (const fly of this.flies) {
-      const d = Math.hypot(fly.x - x, fly.y - y);
-      if (d < best) {
-        best = d;
-        nearest = fly;
-      }
-    }
-
-    this.selectedId = nearest?.id ?? null;
-    this.emitHud();
-  };
-}
