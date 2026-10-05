@@ -375,3 +375,154 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
   footer { grid-template-columns: 1fr; gap: 9px; text-align: center; }
   footer a { justify-self: center; }
 }
+
+
+/* Build 002: whole-connectome boss, fullscreen and expanded mutations */
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.fullscreen-button {
+  border: 1px solid #394553;
+  background: #0c1118;
+  color: #dce3ea;
+  min-height: 33px;
+  padding: 0 11px;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .1em;
+  cursor: pointer;
+}
+.fullscreen-button:hover {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+.brain-badge.loading { color: #ffcf57; border-color: #5a4c24; }
+.brain-badge.ready { color: var(--acid); border-color: #40551e; }
+.brain-badge.error { color: var(--red); border-color: #612b31; }
+
+.boss-strip {
+  min-height: 58px;
+  border-bottom: 1px solid #40551e;
+  background: linear-gradient(90deg, rgba(199,255,69,.1), rgba(10,14,18,.92));
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 10px 18px;
+}
+.boss-strip > div:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.boss-strip span {
+  color: var(--acid);
+  font-size: 8px;
+  letter-spacing: .14em;
+  font-weight: 900;
+}
+.boss-strip strong { font-size: 12px; }
+.boss-hp {
+  height: 9px;
+  background: #1c241b;
+  overflow: hidden;
+  border: 1px solid #42502e;
+}
+.boss-hp i {
+  display: block;
+  height: 100%;
+  background: var(--acid);
+  box-shadow: 0 0 12px rgba(199,255,69,.45);
+}
+.neural-readout {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.neural-readout b {
+  border: 1px solid #3a4654;
+  padding: 5px 7px;
+  color: #b9c4cf;
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+
+.upgrade-card {
+  position: relative;
+}
+.upgrade-card em {
+  display: inline-block;
+  margin-bottom: 13px;
+  font-size: 8px;
+  font-style: normal;
+  font-weight: 900;
+  letter-spacing: .13em;
+  color: #7f8b99;
+}
+.upgrade-card.rarity-rare { border-color: #3f7180; }
+.upgrade-card.rarity-rare em { color: var(--cyan); }
+.upgrade-card.rarity-neural {
+  border-color: #6d8429;
+  background:
+    linear-gradient(135deg, rgba(199,255,69,.07), transparent 58%),
+    #0d131b;
+}
+.upgrade-card.rarity-neural em { color: var(--acid); }
+
+.connectome-data em {
+  color: var(--red);
+  max-width: min(520px, 100%);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.game-shell:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  border: 0;
+  display: flex;
+  flex-direction: column;
+  background: #06080c;
+}
+.game-shell:fullscreen .game-topbar,
+.game-shell:fullscreen .boss-strip,
+.game-shell:fullscreen .hud-row {
+  flex: 0 0 auto;
+}
+.game-shell:fullscreen .canvas-wrap {
+  flex: 1 1 auto;
+  min-height: 0;
+  aspect-ratio: auto;
+}
+.game-shell:fullscreen .agent-inspector {
+  display: none;
+}
+.game-shell:fullscreen canvas {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+@media (max-width: 900px) {
+  .topbar-actions {
+    width: 100%;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .boss-strip {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .neural-readout { justify-content: flex-start; }
+}
+
+@media (max-width: 640px) {
+  .fullscreen-button { width: 100%; }
+  .game-shell:fullscreen .game-topbar { padding: 8px 10px; }
+  .game-shell:fullscreen .hud-row { display: none; }
+  .game-shell:fullscreen .boss-strip { padding: 7px 10px; }
+}

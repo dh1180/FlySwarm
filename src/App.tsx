@@ -23,7 +23,7 @@ export default function App() {
         <a href="#top" className="brand">
           <span className="brand-fly">🪰</span>
           <b>FlySwarm</b>
-          <em>AI SWARM SURVIVAL</em>
+          <em>CONNECTOME SURVIVAL</em>
         </a>
         <div>
           <a href="#experiment">EXPERIMENT</a>
@@ -35,22 +35,24 @@ export default function App() {
       </nav>
 
       <header className="hero" id="top">
-        <div className="hero-kicker">MULTI-AGENT SURVIVAL EXPERIMENT // BUILD 001</div>
+        <div className="hero-kicker">MULTI-AGENT SURVIVAL EXPERIMENT // BUILD 002</div>
         <div className="hero-layout">
           <div>
             <h1>
-              10,000 FLIES.<br/>
-              <span>ONE HUMAN.</span>
+              A SWARM.<br/>
+              <span>ONE REAL WIRING DIAGRAM.</span>
             </h1>
             <p>
-              똑같이 달려드는 몬스터는 없습니다. 각 초파리는 서로 다른 성향을 가진
-              작은 AI 에이전트이며 주변 개체, 투사체, 플레이어를 보고 스스로 행동을 선택합니다.
+              일반 초파리는 가벼운 Utility AI로 수백 마리를 동시에 처리합니다.
+              그러나 보스는 다릅니다. FlyWire FAFB v783에서 파생된 전체 연결 그래프를
+              Web Worker에서 leaky integrate-and-fire 방식으로 실행하고, 그 descending
+              neuron 출력이 실제 보스의 이동과 회피에 사용됩니다.
             </p>
           </div>
           <div className="hero-stat">
-            <small>OBJECTIVE</small>
-            <strong>SURVIVE.</strong>
-            <i>WASD · AUTO FIRE · EVOLVING SWARM</i>
+            <small>FULL-BRAIN SOURCE GRAPH</small>
+            <strong>138,639</strong>
+            <i>NEURONS · 15,091,983 PAIRS · 54,492,922 SYNAPSES</i>
           </div>
         </div>
       </header>
@@ -58,10 +60,11 @@ export default function App() {
       <section className="experiment" id="experiment">
         <div className="section-heading">
           <span>01 / LIVE EXPERIMENT</span>
-          <h2>THE SWARM<br/>IS LEARNING.</h2>
+          <h2>THE BOSS<br/>HAS A BRAIN.</h2>
           <p>
-            웨이브가 끝날 때 살아남은 초파리의 성향이 다음 세대의 기준값에 반영됩니다.
-            오래 버틸수록 더 빠르고, 더 사회적이고, 더 까다로운 군집이 만들어집니다.
+            게임 시작과 함께 전체 connectome을 백그라운드에서 로드합니다.
+            3웨이브부터 보스가 등장하며, LPLC2 시각 입력에서 시작된 활동이
+            전체 뇌 연결망을 통과한 뒤 descending/motor 출력으로 게임 동작에 반영됩니다.
           </p>
         </div>
         <FlySwarmGame />
@@ -69,44 +72,44 @@ export default function App() {
 
       <section className="brain-section" id="brain">
         <div className="section-heading dark-heading">
-          <span>02 / BRAIN MODEL</span>
-          <h2>EVERY FLY<br/>HAS A BRAIN.</h2>
+          <span>02 / TWO AI LAYERS</span>
+          <h2>SWARM AI.<br/>WHOLE-BRAIN BOSS.</h2>
           <p>
-            현재 버전은 실제 초파리 뇌 전체를 시뮬레이션하는 모델이 아니라,
-            초파리 군집 행동을 게임 시스템으로 표현한 독립형 Utility AI입니다.
+            수백 개 일반몹에는 계산량이 가벼운 군집 AI를 사용하고,
+            단 하나의 보스에만 전체 FlyWire source graph를 사용합니다.
           </p>
         </div>
 
         <div className="brain-grid">
           <BrainBlock
             number="01"
-            title="PERCEPTION"
-            body="플레이어 거리, 주변 초파리 밀도, 가까운 투사체, 현재 체력을 개체별 입력으로 사용합니다."
+            title="UTILITY SWARM"
+            body="일반몹은 플레이어 거리, 투사체 위협, 주변 개체 밀도와 personality genome을 이용해 CHASE/FLEE/SWARM을 고릅니다."
           />
           <BrainBlock
             number="02"
-            title="UTILITY AI"
-            body="CHASE, FLEE, SWARM의 점수를 매 프레임 계산하고 가장 높은 행동을 선택합니다."
+            title="FULL CONNECTOME"
+            body="보스 Worker는 source graph의 138,639 neuron slots와 15,091,983 directed pairs를 전부 로드합니다. 약한 pair를 별도로 제거하지 않는 Full profile입니다."
           />
           <BrainBlock
             number="03"
-            title="PERSONALITY"
-            body="aggression, fear, social, smell, speed 값이 개체마다 변이되어 같은 상황에서도 서로 다르게 반응합니다."
+            title="LIF DYNAMICS"
+            body="각 뉴런은 단순한 leaky integrate-and-fire 상태를 가지며, 측정된 연결 수와 presynaptic neurotransmitter sign에서 만든 고정 가중치로 활동이 전달됩니다."
           />
           <BrainBlock
             number="04"
-            title="SWARM STEERING"
-            body="가까운 개체만 Spatial Hash로 조회해 cohesion과 separation을 계산하고 군집 이동을 만듭니다."
+            title="SENSORY INPUT"
+            body="게임의 플레이어 방향과 위협 강도를 좌우 LPLC2 population에 합성 시각 입력으로 주입합니다."
           />
           <BrainBlock
             number="05"
-            title="EVOLUTION"
-            body="웨이브 전환 시 생존 개체의 평균 성향을 다음 세대 기준값에 섞어 군집의 특성을 점진적으로 변화시킵니다."
+            title="MOTOR READOUT"
+            body="DNa02, DNa01/DNb01/DNg13, MDN, DNp01, DNp09 등의 spike output을 turn, forward, backward, escape, stop 동작으로 매핑합니다."
           />
           <BrainBlock
             number="06"
-            title="NEXT"
-            body="향후 실제 FlyWire connectome에서 추출한 소규모 회로 구조와 Web Worker 기반 대규모 시뮬레이션을 연결할 수 있습니다."
+            title="NOT A MIND UPLOAD"
+            body="전체 wiring diagram을 사용하지만 감각 입력, LIF 파라미터와 게임 body mapping은 공학적으로 설계된 근사입니다. 실제 초파리의 정신이나 완전한 생물학적 행동 재현이 아닙니다."
           />
         </div>
       </section>
@@ -114,14 +117,17 @@ export default function App() {
       <section className="warning-section">
         <span>SCIENTIFIC NOTE</span>
         <p>
-          FlySwarm의 적 AI는 <b>실제 초파리의 신경계를 재현한 생물학적 시뮬레이션이 아닙니다.</b>
-          현재는 초파리의 군집성과 행동 선택에서 영감을 받은 게임용 인공 에이전트입니다.
+          FlyWire의 공식 FAFB v783에는 139,255개의 proofread neuron이 보고되어 있습니다.
+          FlySwarm 보스가 사용하는 공개 simulation source pack은 그중 연결 그래프에 포함된
+          <b> 138,639 neuron index와 15,091,983 directed pairs를 모두 보존한 모델 입력</b>입니다.
+          따라서 “전체 connectome source graph”를 사용하지만 생물학적 뇌 전체 기능을 완벽하게
+          재현한다는 뜻은 아닙니다.
         </p>
       </section>
 
       <footer>
         <b>FlySwarm</b>
-        <span>HUMAN VS ARTIFICIAL FRUIT-FLY SWARM</span>
+        <span>UTILITY SWARM + FULL-CONNECTOME BOSS</span>
         <a href="https://github.com/dh1180/FlySwarm" target="_blank" rel="noreferrer">SOURCE ↗</a>
       </footer>
     </main>

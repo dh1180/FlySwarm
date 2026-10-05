@@ -25,14 +25,35 @@ const initialHud: HudSnapshot = {
     speed: 0.5,
   },
   selected: null,
+  boss: null,
+  connectome: {
+    status: 'idle',
+    progress: 0,
+    neurons: 0,
+    pairs: 0,
+    synapses: 0,
+    error: null,
+    output: {
+      turn: 0,
+      forward: 0,
+      backward: 0,
+      escape: 0,
+      stop: 0,
+      wing: 0,
+      activity: 0,
+      spikes: 0,
+    },
+  },
 };
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
 export default function FlySwarmGame() {
+  const shellRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const [started, setStarted] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const [hud, setHud] = useState(initialHud);
   const [upgrades, setUpgrades] = useState<UpgradeOption[]>([]);
   const [gameOver, setGameOver] = useState<GameOverSnapshot | null>(null);
@@ -47,7 +68,15 @@ export default function FlySwarmGame() {
     });
     engineRef.current = engine;
 
-    return () => engine.destroy();
+    const syncFullscreen = () => {
+      setFullscreen(document.fullscreenElement === shellRef.current);
+    };
+    document.addEventListener('fullscreenchange', syncFullscreen);
+
+    return () => {
+      document.removeEventListener('fullscreenchange', syncFullscreen);
+      engine.destroy();
+    };
   }, []);
 
   const start = () => {
@@ -68,20 +97,70 @@ export default function FlySwarmGame() {
     setUpgrades([]);
   };
 
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await shellRef.current?.requestFullscreen();
+      }
+    } catch {
+      // Browser or embedding context may disallow fullscreen.
+    }
+  };
+
+  const brainLabel =
+    hud.connectome.status === 'ready'
+      ? `FULL BRAIN ${hud.connectome.neurons.toLocaleString()}N`
+      : hud.connectome.status === 'loading'
+        ? `BRAIN LOADING ${Math.round(hud.connectome.progress * 100)}%`
+        : hud.connectome.status === 'error'
+          ? 'BRAIN LOAD ERROR'
+          : 'BRAIN IDLE';
+
   return (
-    <section className="game-shell">
+    <section className="game-shell" ref={shellRef}>
       <div className="game-topbar">
         <div>
           <span>LIVE EXPERIMENT</span>
-          <strong>HUMAN VS ARTIFICIAL FRUIT-FLY SWARM</strong>
+          <strong>HUMAN VS ARTIFICIAL SWARM + FULL-CONNECTOME BOSS</strong>
         </div>
-        <div className="topbar-stats">
-          <b>WAVE {hud.wave}</b>
-          <b>{hud.kills} KILLS</b>
-          <b>{Math.floor(hud.seconds)}s</b>
-          <b>{hud.enemyCount} AGENTS</b>
+
+        <div className="topbar-actions">
+          <div className="topbar-stats">
+            <b>WAVE {hud.wave}</b>
+            <b>{hud.kills} KILLS</b>
+            <b>{Math.floor(hud.seconds)}s</b>
+            <b>{hud.enemyCount} AGENTS</b>
+            <b className={`brain-badge ${hud.connectome.status}`}>{brainLabel}</b>
+          </div>
+          <button className="fullscreen-button" onClick={toggleFullscreen}>
+            {fullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN'}
+          </button>
         </div>
       </div>
+
+      {hud.boss && (
+        <div className="boss-strip">
+          <div>
+            <span>⚠ CONNECTOME ENTITY DETECTED</span>
+            <strong>FULL-BRAIN BOSS</strong>
+          </div>
+          <div className="boss-hp">
+            <i
+              style={{
+                width: `${Math.max(0, (hud.boss.hp / hud.boss.maxHp) * 100)}%`,
+              }}
+            />
+          </div>
+          <div className="neural-readout">
+            <b>TURN {hud.boss.brain.output.turn.toFixed(2)}</b>
+            <b>MOVE {pct(hud.boss.brain.output.forward)}</b>
+            <b>ESC {pct(hud.boss.brain.output.escape)}</b>
+            <b>ACT {pct(hud.boss.brain.output.activity)}</b>
+          </div>
+        </div>
+      )}
 
       <div className="canvas-wrap">
         <canvas ref={canvasRef} aria-label="FlySwarm game canvas" />
@@ -89,11 +168,12 @@ export default function FlySwarmGame() {
         {!started && (
           <div className="game-overlay intro-overlay">
             <span className="fly-icon">🪰</span>
-            <p>EVERY FLY THINKS FOR ITSELF.</p>
+            <p>EVERY FLY THINKS. THE BOSS GETS THE WHOLE BRAIN.</p>
             <h2>SURVIVE<br/>THE SWARM.</h2>
             <p className="overlay-copy">
-              WASD / 방향키로 이동하세요.<br/>
-              공격은 자동입니다. 초파리를 클릭하면 개체의 AI 성향을 볼 수 있습니다.
+              WASD / 방향키로 이동하세요. 공격은 자동입니다.<br/>
+              일반몹은 Utility AI, 보스는 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
+              전체뇌 데이터 약 30.7MB는 게임 시작 후 백그라운드에서 불러옵니다.
             </p>
             <button onClick={start}>ENTER THE SWARM</button>
           </div>
@@ -105,7 +185,12 @@ export default function FlySwarmGame() {
             <h2>CHOOSE A MUTATION</h2>
             <div className="upgrade-grid">
               {upgrades.map((upgrade) => (
-                <button key={upgrade.key} onClick={() => chooseUpgrade(upgrade.key)}>
+                <button
+                  key={upgrade.key}
+                  className={`upgrade-card rarity-${upgrade.rarity.toLowerCase()}`}
+                  onClick={() => chooseUpgrade(upgrade.key)}
+                >
+                  <em>{upgrade.rarity}</em>
                   <span>{upgrade.title}</span>
                   <small>{upgrade.description}</small>
                 </button>
@@ -144,7 +229,7 @@ export default function FlySwarmGame() {
           <div className="bar">
             <i className="xp" style={{ width: `${(hud.xp / hud.xpNeed) * 100}%` }} />
           </div>
-          <strong>{hud.xp} / {hud.xpNeed} XP</strong>
+          <strong>{Math.floor(hud.xp)} / {hud.xpNeed} XP</strong>
         </div>
 
         <div className="hud-card genome-card">
@@ -160,9 +245,13 @@ export default function FlySwarmGame() {
 
       <div className="agent-inspector">
         <div>
-          <span>AGENT INSPECTOR</span>
-          <p>게임 화면에서 초파리 한 마리를 클릭하세요.</p>
+          <span>AGENT / CONNECTOME INSPECTOR</span>
+          <p>
+            일반 초파리를 클릭하면 Utility AI 성향을 확인할 수 있습니다.
+            전체뇌 보스의 신경 출력은 상단 보스 패널에서 표시됩니다.
+          </p>
         </div>
+
         {hud.selected ? (
           <div className="agent-data">
             <strong>FLY #{hud.selected.id}</strong>
@@ -175,7 +264,17 @@ export default function FlySwarmGame() {
             <span>Speed {pct(hud.selected.genome.speed)}</span>
           </div>
         ) : (
-          <div className="agent-empty">NO AGENT SELECTED</div>
+          <div className="agent-data connectome-data">
+            <strong>{brainLabel}</strong>
+            {hud.connectome.status === 'ready' && (
+              <>
+                <span>{hud.connectome.pairs.toLocaleString()} PAIRS</span>
+                <span>{hud.connectome.synapses.toLocaleString()} SYNAPSES</span>
+                <span>{hud.connectome.output.spikes} RECENT SPIKES</span>
+              </>
+            )}
+            {hud.connectome.error && <em>{hud.connectome.error}</em>}
+          </div>
         )}
       </div>
     </section>
