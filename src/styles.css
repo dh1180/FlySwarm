@@ -178,6 +178,7 @@ a { color: inherit; }
 .game-overlay {
   position: absolute;
   inset: 0;
+  z-index: 10;
   background: rgba(4, 6, 9, .82);
   backdrop-filter: blur(5px);
   display: grid;
@@ -525,4 +526,51 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
   .game-shell:fullscreen .game-topbar { padding: 8px 10px; }
   .game-shell:fullscreen .hud-row { display: none; }
   .game-shell:fullscreen .boss-strip { padding: 7px 10px; }
+}
+
+
+/* Build 003: visible fullscreen control */
+.fullscreen-fab {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 25;
+  border: 1px solid rgba(199, 255, 69, .8);
+  background: rgba(7, 11, 15, .88);
+  color: var(--acid);
+  min-height: 42px;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .09em;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, .32);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+}
+.fullscreen-fab span {
+  font-size: 18px;
+  line-height: 1;
+}
+.fullscreen-fab:hover {
+  background: var(--acid);
+  color: #071017;
+  transform: translateY(-1px);
+}
+.game-shell:fullscreen .fullscreen-fab {
+  top: 12px;
+  right: 12px;
+}
+
+@media (max-width: 640px) {
+  .fullscreen-fab {
+    top: 9px;
+    right: 9px;
+    min-height: 38px;
+    padding: 0 10px;
+    font-size: 8px;
+  }
+  .fullscreen-fab span { font-size: 16px; }
 }
