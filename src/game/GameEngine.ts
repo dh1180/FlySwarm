@@ -89,6 +89,15 @@ type LightningFx = {
   color: string;
 };
 
+type BossStrike = {
+  x: number;
+  y: number;
+  timer: number;
+  maxTimer: number;
+  radius: number;
+  damage: number;
+};
+
 type RewardChest = {
   id: number;
   x: number;
@@ -253,6 +262,7 @@ export class GameEngine {
   private bullets: Bullet[] = [];
   private orbs: Orb[] = [];
   private chests: RewardChest[] = [];
+  private bossStrikes: BossStrike[] = [];
   private enemyShots: EnemyShot[] = [];
   private damageFields: DamageField[] = [];
   private particles: Particle[] = [];
@@ -308,6 +318,7 @@ export class GameEngine {
     this.bullets = [];
     this.orbs = [];
     this.chests = [];
+    this.bossStrikes = [];
     this.enemyShots = [];
     this.damageFields = [];
     this.particles = [];
@@ -784,10 +795,6 @@ export class GameEngine {
     }
   }
 
-  castLightningAtAim() {
-    this.castTargetLightning();
-  }
-
   destroy() {
     this.running = false;
     cancelAnimationFrame(this.raf);
@@ -912,6 +919,7 @@ export class GameEngine {
     this.spatial.rebuild(this.flies);
     this.updateFlies(dt);
     this.updateBoss(dt);
+    this.updateBossStrikes(dt);
     this.updateEnemyShots(dt);
     this.spatial.rebuild(this.flies);
     this.updateShooting();
@@ -1441,16 +1449,24 @@ export class GameEngine {
             bossOwned: true,
           });
         }
-        this.lightningFx.push({
-          x1: boss.x,
-          y1: boss.y,
-          x2: this.player.x,
-          y2: this.player.y,
-          life: 0.22,
-          maxLife: 0.22,
-          color: '#b678ff',
+        this.bossStrikes.push({
+          x: this.player.x,
+          y: this.player.y,
+          timer: 0.55,
+          maxTimer: 0.55,
+          radius: 76,
+          damage: 13 + this.wave * 0.85,
         });
-        this.screenShake = Math.max(this.screenShake, 7);
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          18,
+          76,
+          '#b678ff',
+          0.55,
+          3,
+        );
+        this.screenShake = Math.max(this.screenShake, 4);
       } else if (boss.kind === 'SWARM_QUEEN') {
         boss.specialCooldown = 4.8;
         for (let i = 0; i < 7; i += 1) {
@@ -1735,7 +1751,7 @@ export class GameEngine {
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
           if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + 10) {
-            const orbitalMultiplier = this.evolvedSkills.has('neuralSingularity')
+            const orbitalMultiplier = this.evolvedSkills.has('ganglionResonance')
               ? 1.75
               : 1;
             fly.hp -=
@@ -1755,7 +1771,7 @@ export class GameEngine {
           this.damageBoss(
             this.player.orbitalDamage *
               4 *
-              (this.evolvedSkills.has('neuralSingularity') ? 1.75 : 1) *
+              (this.evolvedSkills.has('ganglionResonance') ? 1.75 : 1) *
               dt *
               this.player.bossDamage,
           );
@@ -1768,7 +1784,7 @@ export class GameEngine {
       if (this.player.novaTimer >= this.player.novaInterval) {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
-        const singularity = this.evolvedSkills.has('neuralSingularity');
+        const singularity = this.evolvedSkills.has('ganglionResonance');
         const radius = singularity ? 320 : 220;
         const damage = this.player.novaDamage * (singularity ? 1.65 : 1);
         this.damageCircle(
@@ -1843,16 +1859,16 @@ export class GameEngine {
         this.spawnParticles(
           x,
           y,
-          this.evolvedSkills.has('ionCataclysm') ? '#ffffff' : '#9cff47',
-          this.evolvedSkills.has('ionCataclysm') ? 28 : 18,
-          this.evolvedSkills.has('ionCataclysm') ? 145 : 90,
+          this.evolvedSkills.has('glialCalciumStorm') ? '#ffffff' : '#9cff47',
+          this.evolvedSkills.has('glialCalciumStorm') ? 28 : 18,
+          this.evolvedSkills.has('glialCalciumStorm') ? 145 : 90,
         );
         this.spawnRing(
           x,
           y,
           12,
           82 + this.player.fieldLevel * 10,
-          this.evolvedSkills.has('ionCataclysm') ? '#d9f7ff' : '#9cff47',
+          this.evolvedSkills.has('glialCalciumStorm') ? '#d9f7ff' : '#9cff47',
           0.45,
           4,
         );
@@ -1890,6 +1906,41 @@ export class GameEngine {
       color,
       bossOwned: false,
     });
+  }
+
+  private updateBossStrikes(dt: number) {
+    for (const strike of this.bossStrikes) {
+      strike.timer -= dt;
+      if (strike.timer > 0) continue;
+
+      const distance = Math.hypot(
+        this.player.x - strike.x,
+        this.player.y - strike.y,
+      );
+      if (distance <= strike.radius + this.player.radius) {
+        this.damagePlayerFromBoss(strike.damage);
+      }
+
+      for (let i = 0; i < 3; i += 1) {
+        this.lightningFx.push({
+          x1: strike.x + randomRange(-85, 85),
+          y1: Math.max(0, strike.y - randomRange(420, 620)),
+          x2: strike.x + randomRange(-7, 7),
+          y2: strike.y + randomRange(-7, 7),
+          life: 0.34,
+          maxLife: 0.34,
+          color: '#b678ff',
+        });
+      }
+      this.spawnParticles(strike.x, strike.y, '#b678ff', 34, 210);
+      this.spawnRing(strike.x, strike.y, 12, strike.radius, '#b678ff', 0.34, 7);
+      this.screenShake = Math.max(this.screenShake, 9);
+      strike.timer = -999;
+    }
+
+    this.bossStrikes = this.bossStrikes.filter(
+      (strike) => strike.timer > -100,
+    );
   }
 
   private updateEnemyShots(dt: number) {
@@ -1944,7 +1995,7 @@ export class GameEngine {
       }
 
       if (
-        this.evolvedSkills.has('ionCataclysm') &&
+        this.evolvedSkills.has('glialCalciumStorm') &&
         field.pulseTimer >= 0.95
       ) {
         field.pulseTimer = 0;
@@ -2113,7 +2164,7 @@ export class GameEngine {
     if (!Number.isFinite(bestDistance)) return;
 
     const level = this.player.manualLanceLevel;
-    const evolved = this.evolvedSkills.has('stormLance');
+    const evolved = this.evolvedSkills.has('spikePropagation');
     const aim = normalize(targetX - this.player.x, targetY - this.player.y);
     this.player.manualLanceCooldown =
       Math.max(0.38, 1.22 - level * 0.12) * (evolved ? 0.72 : 1);
@@ -2171,97 +2222,6 @@ export class GameEngine {
     this.screenShake = Math.max(this.screenShake, evolved ? 5.5 : 3.2);
   }
 
-  private getLightningCooldownDuration() {
-    const base = Math.max(
-      1.8,
-      5.7 - this.player.lightningLevel * 0.62,
-    );
-    return base * (this.evolvedSkills.has('stormLance') ? 0.82 : 1);
-  }
-
-  private castTargetLightning() {
-    if (
-      this.player.lightningLevel <= 0 ||
-      this.player.lightningCooldown > 0 ||
-      this.pausedForUpgrade ||
-      this.gameOver ||
-      this.gameCleared
-    ) {
-      return;
-    }
-
-    const level = this.player.lightningLevel;
-    const evolved = this.evolvedSkills.has('stormLance');
-    const x = clamp(this.aimX, 25, WORLD_WIDTH - 25);
-    const y = clamp(this.aimY, 25, WORLD_HEIGHT - 25);
-    const radius = (88 + level * 13) * (evolved ? 1.18 : 1);
-    const damage =
-      (72 + level * 34 + this.player.damage * 0.9) *
-      (evolved ? 1.25 : 1);
-
-    this.player.lightningCooldown =
-      this.getLightningCooldownDuration();
-    this.damageCircle(x, y, radius, damage);
-
-    const bolts = evolved ? 4 : 2;
-    for (let i = 0; i < bolts; i += 1) {
-      this.lightningFx.push({
-        x1: x + randomRange(-120, 120),
-        y1: Math.max(0, y - randomRange(430, 620)),
-        x2: x + randomRange(-8, 8),
-        y2: y + randomRange(-8, 8),
-        life: 0.38,
-        maxLife: 0.38,
-        color: evolved ? '#ffffff' : '#d9f7ff',
-      });
-    }
-
-    if (evolved) {
-      for (let i = 0; i < 8; i += 1) {
-        const angle = (i / 8) * TAU;
-        this.bullets.push({
-          x,
-          y,
-          vx: Math.cos(angle) * 740,
-          vy: Math.sin(angle) * 740,
-          radius: 6,
-          life: 0.82,
-          damage: this.player.damage * 1.35,
-          pierce: 3,
-          hit: new Set<number>(),
-          critical: false,
-          style: 'LANCE',
-        });
-      }
-    }
-
-    this.spawnParticles(
-      x,
-      y,
-      evolved ? '#ffffff' : '#d9f7ff',
-      evolved ? 58 : 40,
-      evolved ? 270 : 225,
-    );
-    this.spawnRing(
-      x,
-      y,
-      10,
-      radius * 1.15,
-      evolved ? '#ffffff' : '#d9f7ff',
-      0.42,
-      evolved ? 10 : 7,
-    );
-    this.spawnRing(
-      x,
-      y,
-      22,
-      radius * 0.72,
-      '#5beaff',
-      0.3,
-      4,
-    );
-    this.screenShake = Math.max(this.screenShake, evolved ? 16 : 12);
-  }
 
   private triggerMeteor() {
     let x = this.aimX;
@@ -2287,7 +2247,7 @@ export class GameEngine {
     }
 
     const level = this.player.meteorLevel;
-    const evolved = this.evolvedSkills.has('ionCataclysm');
+    const evolved = this.evolvedSkills.has('glialCalciumStorm');
     const radius = (112 + level * 12) * (evolved ? 1.28 : 1);
     const damage = (66 + level * 30) * (evolved ? 1.5 : 1);
     this.damageCircle(x, y, radius, damage);
@@ -3364,7 +3324,7 @@ export class GameEngine {
 
   private drawAim() {
     if (
-      this.player.lightningLevel <= 0
+      this.player.fieldLevel <= 0
     ) {
       return;
     }
@@ -3387,8 +3347,7 @@ export class GameEngine {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.strokeStyle =
-      this.player.lightningLevel > 0 ? '#d9f7ff' : '#5beaff';
+    ctx.strokeStyle = '#9cff47';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(x, y, 12, 0, TAU);
@@ -3513,13 +3472,8 @@ export class GameEngine {
       'ArrowDown',
       'ArrowLeft',
       'ArrowRight',
-      'KeyE',
     ];
     if (block.includes(event.code)) event.preventDefault();
-
-    if (!event.repeat && event.code === 'KeyE') {
-      this.castTargetLightning();
-    }
 
     this.keys.add(event.code);
   };
@@ -3548,7 +3502,6 @@ export class GameEngine {
     const point = this.pointerWorld(event);
     this.aimX = point.x;
     this.aimY = point.y;
-    this.castTargetLightning();
   };
 
   private onCanvasClick = (event: MouseEvent) => {
