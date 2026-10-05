@@ -66,7 +66,7 @@ async function fetchGz(url: string) {
 async function sha256(bytes: Uint8Array) {
   // Copy into a plain ArrayBuffer so TypeScript 7/WebCrypto does not infer
   // SharedArrayBuffer-compatible ArrayBufferLike for the digest input.
-  const copy = new Uint8Array(bytes.byteLength);
+  const copy: Uint8Array<ArrayBuffer> = new Uint8Array(bytes.byteLength);
   copy.set(bytes);
   const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
   return Array.from(new Uint8Array(digest), (b) =>
@@ -154,8 +154,8 @@ class LifEngine {
   private readonly inActive: Uint8Array;
   private readonly active: Int32Array;
   private readonly ring: Array<{ buf: Int32Array; n: number }>;
-  private stimList = new Int32Array(0);
-  private stimRate: Float32Array | null = null;
+  private stimList: Int32Array<ArrayBufferLike> = new Int32Array(0);
+  private stimRate: Float32Array<ArrayBufferLike> | null = null;
   private activeCount = 0;
   private stepCount = 0;
   totalSpikes = 0;
@@ -199,7 +199,10 @@ class LifEngine {
     for (const i of this.stimList) this.touch(i);
   }
 
-  stimulate(indices: Int32Array, rates?: Float32Array) {
+  stimulate(
+    indices: Int32Array<ArrayBufferLike>,
+    rates?: Float32Array<ArrayBufferLike>,
+  ) {
     this.stimList = indices;
     this.stimRate = rates ?? null;
     for (const i of indices) this.touch(i);
