@@ -254,3 +254,16 @@ export type GameClearSnapshot = {
   seconds: number;
   bossesDefeated: number;
 };
+
+export type ChestRarity = 'COMMON' | 'RARE' | 'MYTHIC';
+export type RewardSource =
+  | 'LEVEL_UP'
+  | 'CHEST_COMMON'
+  | 'CHEST_RARE'
+  | 'CHEST_MYTHIC';
+
+export type RewardContext = {
+  source: RewardSource;
+  title: string;
+  subtitle: string;
+};

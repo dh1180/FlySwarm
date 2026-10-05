@@ -3,6 +3,7 @@ import { WholeBrainController } from './connectome/WholeBrainController';
 import { DopaminePolicy } from './learning/DopaminePolicy';
 import type {
   Bullet,
+  ChestRarity,
   FlyAgent,
   EvolutionKey,
   GameClearSnapshot,
@@ -12,6 +13,7 @@ import type {
   Orb,
   OwnedSkill,
   Player,
+  RewardContext,
   SelectedFly,
   SkillKey,
   SkillRarity,
@@ -85,6 +87,16 @@ type LightningFx = {
   life: number;
   maxLife: number;
   color: string;
+};
+
+type RewardChest = {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  rarity: ChestRarity;
+  life: number;
+  phase: number;
 };
 
 type RingFx = {
@@ -188,7 +200,7 @@ const evolutionCatalog: EvolutionDefinition[] = [
 
 type Callbacks = {
   onHud: (hud: HudSnapshot) => void;
-  onLevelUp: (options: UpgradeOption[]) => void;
+  onLevelUp: (options: UpgradeOption[], context: RewardContext) => void;
   onGameOver: (result: GameOverSnapshot) => void;
   onGameClear: (result: GameClearSnapshot) => void;
 };
@@ -217,6 +229,7 @@ export class GameEngine {
   private wave = 1;
   private kills = 0;
   private flyId = 1;
+  private chestId = 1;
   private selectedId: number | null = null;
   private nextBossWave = 3;
   private bossBrainTimer = 0;
@@ -238,6 +251,7 @@ export class GameEngine {
   private flies: FlyAgent[] = [];
   private bullets: Bullet[] = [];
   private orbs: Orb[] = [];
+  private chests: RewardChest[] = [];
   private enemyShots: EnemyShot[] = [];
   private damageFields: DamageField[] = [];
   private particles: Particle[] = [];
@@ -292,6 +306,7 @@ export class GameEngine {
     this.flies = [];
     this.bullets = [];
     this.orbs = [];
+    this.chests = [];
     this.enemyShots = [];
     this.damageFields = [];
     this.particles = [];
@@ -308,6 +323,7 @@ export class GameEngine {
     this.wave = 1;
     this.kills = 0;
     this.flyId = 1;
+    this.chestId = 1;
     this.selectedId = null;
     this.nextBossWave = 3;
     this.bossBrainTimer = 0;
@@ -858,6 +874,7 @@ export class GameEngine {
     this.updateBullets(dt);
     this.updateAbilities(dt);
     this.updateDamageFields(dt);
+    this.updateChests(dt);
     this.updateOrbs(dt);
     this.updateVfx(dt);
 
@@ -868,6 +885,7 @@ export class GameEngine {
     this.particles = this.particles.filter((particle) => particle.life > 0);
     this.lightningFx = this.lightningFx.filter((fx) => fx.life > 0);
     this.ringFx = this.ringFx.filter((fx) => fx.life > 0);
+    this.chests = this.chests.filter((chest) => chest.life > 0);
 
     if (this.player.hp <= 0) {
       this.player.hp = 0;
@@ -2321,6 +2339,7 @@ export class GameEngine {
       vy: randomRange(-18, 18),
       value: xpValue,
     });
+    this.maybeDropChest(fly);
     if (this.selectedId === fly.id) this.selectedId = null;
   }
 
@@ -2385,6 +2404,167 @@ export class GameEngine {
     this.emitHud();
   }
 
+  private maybeDropChest(fly: FlyAgent) {
+    const dropChance =
+      fly.kind === 'BRUTE'
+        ? 0.035
+        : fly.kind === 'SPITTER' || fly.kind === 'BOMBER'
+          ? 0.026
+          : fly.kind === 'DARTER'
+            ? 0.018
+            : 0.014;
+
+    if (Math.random() > dropChance) return;
+
+    const rarityRoll = Math.random();
+    const rarity: ChestRarity =
+      rarityRoll < 0.01
+        ? 'MYTHIC'
+        : rarityRoll < 0.085
+          ? 'RARE'
+          : 'COMMON';
+
+    this.chests.push({
+      id: this.chestId++,
+      x: fly.x,
+      y: fly.y,
+      radius: rarity === 'MYTHIC' ? 21 : rarity === 'RARE' ? 19 : 17,
+      rarity,
+      life: rarity === 'MYTHIC' ? 28 : rarity === 'RARE' ? 24 : 20,
+      phase: Math.random() * TAU,
+    });
+
+    const color =
+      rarity === 'MYTHIC'
+        ? '#ffd166'
+        : rarity === 'RARE'
+          ? '#c77dff'
+          : '#5beaff';
+    this.spawnParticles(fly.x, fly.y, color, rarity === 'MYTHIC' ? 22 : 12, 95);
+    this.spawnRing(fly.x, fly.y, 8, 58, color, 0.38, 3);
+  }
+
+  private updateChests(dt: number) {
+    for (const chest of this.chests) {
+      chest.life -= dt;
+      if (chest.life <= 0) continue;
+
+      const distance = Math.hypot(
+        chest.x - this.player.x,
+        chest.y - this.player.y,
+      );
+
+      if (distance <= chest.radius + this.player.radius + 9) {
+        this.openChest(chest);
+        chest.life = 0;
+        break;
+      }
+    }
+  }
+
+  private openChest(chest: RewardChest) {
+    if (this.pausedForUpgrade || this.gameOver || this.gameCleared) return;
+
+    const options = this.pickChestOptions(chest.rarity);
+    if (!options.length) {
+      this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25);
+      return;
+    }
+
+    const color =
+      chest.rarity === 'MYTHIC'
+        ? '#ffd166'
+        : chest.rarity === 'RARE'
+          ? '#c77dff'
+          : '#5beaff';
+
+    this.spawnParticles(
+      chest.x,
+      chest.y,
+      color,
+      chest.rarity === 'MYTHIC' ? 52 : chest.rarity === 'RARE' ? 34 : 24,
+      chest.rarity === 'MYTHIC' ? 240 : 160,
+    );
+    this.spawnRing(
+      chest.x,
+      chest.y,
+      12,
+      chest.rarity === 'MYTHIC' ? 190 : 130,
+      color,
+      0.58,
+      chest.rarity === 'MYTHIC' ? 9 : 6,
+    );
+    this.screenShake = Math.max(
+      this.screenShake,
+      chest.rarity === 'MYTHIC' ? 10 : chest.rarity === 'RARE' ? 6 : 3,
+    );
+
+    this.pausedForUpgrade = true;
+    const context: RewardContext =
+      chest.rarity === 'MYTHIC'
+        ? {
+            source: 'CHEST_MYTHIC',
+            title: 'MYTHIC CACHE',
+            subtitle: 'RARE NEURAL REWARD',
+          }
+        : chest.rarity === 'RARE'
+          ? {
+              source: 'CHEST_RARE',
+              title: 'RARE CACHE',
+              subtitle: 'ENHANCED MUTATION REWARD',
+            }
+          : {
+              source: 'CHEST_COMMON',
+              title: 'REWARD CACHE',
+              subtitle: 'SALVAGED MUTATION',
+            };
+
+    this.callbacks.onLevelUp(options, context);
+  }
+
+  private pickChestOptions(rarity: ChestRarity) {
+    const result: UpgradeOption[] = [];
+    const evolutions = evolutionCatalog.filter(
+      (item) =>
+        !this.evolvedSkills.has(item.key) &&
+        this.canEvolve(item),
+    );
+
+    if (rarity !== 'COMMON' && evolutions.length) {
+      const evolution =
+        evolutions[Math.floor(Math.random() * evolutions.length)];
+      result.push(this.buildEvolutionOption(evolution));
+    }
+
+    let definitions = upgradeCatalog.filter(
+      (item) => this.getUpgradeLevel(item.key) < item.maxLevel,
+    );
+
+    if (rarity === 'RARE') {
+      const boosted = definitions.filter(
+        (item) => item.rarity === 'RARE' || item.rarity === 'NEURAL',
+      );
+      if (boosted.length >= 2) definitions = boosted;
+    } else if (rarity === 'MYTHIC') {
+      const neural = definitions.filter((item) => item.rarity === 'NEURAL');
+      const rare = definitions.filter((item) => item.rarity === 'RARE');
+      definitions =
+        neural.length + rare.length >= 3
+          ? [...neural, ...rare]
+          : definitions;
+    }
+
+    const pool = definitions.map((item) => this.buildUpgradeOption(item));
+    const targetCount = rarity === 'MYTHIC' ? 4 : 3;
+
+    while (result.length < targetCount && pool.length) {
+      const index = Math.floor(Math.random() * pool.length);
+      result.push(pool.splice(index, 1)[0]);
+    }
+
+    return result;
+  }
+
   private updateOrbs(dt: number) {
     for (const orb of this.orbs) {
       const dx = this.player.x - orb.x;
@@ -2425,7 +2605,11 @@ export class GameEngine {
       const options = this.pickUpgradeOptions();
       if (options.length) {
         this.pausedForUpgrade = true;
-        this.callbacks.onLevelUp(options);
+        this.callbacks.onLevelUp(options, {
+          source: 'LEVEL_UP',
+          title: 'LEVEL UP',
+          subtitle: 'CHOOSE A MUTATION',
+        });
       } else {
         this.player.hp = Math.min(
           this.player.maxHp,
@@ -2668,6 +2852,7 @@ export class GameEngine {
     ctx.translate(shakeX - camera.x, shakeY - camera.y);
     this.drawGrid();
     this.drawDamageFields();
+    this.drawChests();
     this.drawOrbs();
     this.drawEnemyShots();
     this.drawBullets();
@@ -3170,6 +3355,66 @@ export class GameEngine {
     ctx.moveTo(x, y - 18);
     ctx.lineTo(x, y + 18);
     ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawChests() {
+    const ctx = this.ctx;
+    ctx.save();
+
+    for (const chest of this.chests) {
+      const color =
+        chest.rarity === 'MYTHIC'
+          ? '#ffd166'
+          : chest.rarity === 'RARE'
+            ? '#c77dff'
+            : '#5beaff';
+      const pulse = 1 + Math.sin(this.time * 5 + chest.phase) * 0.08;
+
+      ctx.save();
+      ctx.translate(chest.x, chest.y);
+      ctx.scale(pulse, pulse);
+      ctx.shadowColor = color;
+      ctx.shadowBlur = chest.rarity === 'MYTHIC' ? 28 : 16;
+      ctx.strokeStyle = color;
+      ctx.fillStyle = 'rgba(8,13,18,.94)';
+      ctx.lineWidth = chest.rarity === 'MYTHIC' ? 3 : 2;
+
+      const w = chest.radius * 1.6;
+      const h = chest.radius * 1.15;
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, 3);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(-w / 2, -2);
+      ctx.lineTo(w / 2, -2);
+      ctx.stroke();
+
+      ctx.fillStyle = color;
+      ctx.fillRect(-2.5, -5, 5, 10);
+
+      ctx.globalAlpha = 0.5;
+      ctx.strokeStyle = color;
+      ctx.beginPath();
+      ctx.arc(0, 0, chest.radius + 7, 0, TAU);
+      ctx.stroke();
+
+      if (chest.rarity === 'MYTHIC') {
+        ctx.globalAlpha = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(0, -chest.radius - 12);
+        ctx.lineTo(4, -chest.radius - 5);
+        ctx.lineTo(0, -chest.radius + 1);
+        ctx.lineTo(-4, -chest.radius - 5);
+        ctx.closePath();
+        ctx.stroke();
+      }
+
+      ctx.restore();
+    }
+
     ctx.restore();
   }
 

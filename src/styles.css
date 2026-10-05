@@ -997,3 +997,135 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
     display: none;
   }
 }
+
+
+/* Build 007: bespoke skill icon system + reward caches */
+.skill-icon {
+  --skill-accent: #dce6ef;
+  width: max-content;
+  height: max-content;
+  display: inline-grid;
+  place-items: center;
+  color: var(--skill-accent);
+  flex: 0 0 auto;
+}
+.skill-icon svg {
+  display: block;
+  overflow: visible;
+  filter: drop-shadow(0 0 7px color-mix(in srgb, var(--skill-accent) 34%, transparent));
+}
+
+.upgrade-icon-wrap {
+  width: 58px;
+  height: 58px;
+  border: 1px solid color-mix(in srgb, var(--skill-accent, #dce6ef) 35%, #35404d);
+  background:
+    linear-gradient(135deg, rgba(255,255,255,.04), transparent 58%),
+    #090e14;
+  display: grid;
+  place-items: center;
+  margin-bottom: 14px;
+  position: relative;
+}
+.upgrade-icon-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid rgba(255,255,255,.045);
+  pointer-events: none;
+}
+.upgrade-card:hover .upgrade-icon-wrap {
+  border-color: currentColor;
+}
+
+.skill-chip {
+  min-width: 162px;
+}
+.skill-chip-main {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+}
+.skill-chip-main .skill-icon {
+  width: 31px;
+  height: 31px;
+  border: 1px solid rgba(255,255,255,.08);
+  background: #080d13;
+}
+.skill-chip-main span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.thunder-button .thunder-skill-icon {
+  position: relative;
+  z-index: 2;
+}
+.thunder-button.ready .thunder-skill-icon {
+  filter: drop-shadow(0 0 10px rgba(217,247,255,.65));
+}
+.thunder-icon {
+  display: none;
+}
+
+.reward-chest_common {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(91,234,255,.09), transparent 42%),
+    rgba(4, 6, 9, .88);
+}
+.reward-chest_common .level-label,
+.reward-chest_common h2 {
+  color: var(--cyan);
+}
+.reward-chest_rare {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(199,125,255,.15), transparent 42%),
+    rgba(4, 6, 9, .9);
+}
+.reward-chest_rare .level-label,
+.reward-chest_rare h2 {
+  color: #c77dff;
+}
+.reward-chest_mythic {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(255,209,102,.2), transparent 38%),
+    radial-gradient(circle at 30% 70%, rgba(199,255,69,.08), transparent 38%),
+    rgba(4, 6, 9, .92);
+}
+.reward-chest_mythic .level-label,
+.reward-chest_mythic h2 {
+  color: #ffd166;
+  text-shadow: 0 0 25px rgba(255,209,102,.18);
+}
+.reward-chest_mythic .upgrade-grid {
+  width: min(1180px, 100%);
+  grid-template-columns: repeat(4, 1fr);
+}
+.reward-chest_mythic .upgrade-card {
+  border-color: rgba(255,209,102,.24);
+}
+.reward-chest_mythic .upgrade-card:hover {
+  border-color: #ffd166;
+}
+
+@media (max-width: 900px) {
+  .reward-chest_mythic .upgrade-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .skill-chip {
+    min-width: 145px;
+  }
+  .upgrade-icon-wrap {
+    width: 50px;
+    height: 50px;
+    margin-bottom: 10px;
+  }
+  .reward-chest_mythic .upgrade-grid {
+    grid-template-columns: 1fr;
+  }
+}
