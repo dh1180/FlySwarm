@@ -561,6 +561,32 @@ export class GameEngine {
         break;
     }
 
+    const immediateFusions =
+      nextLevel >= definition.maxLevel && offensiveSkillKeys.includes(key)
+        ? evolutionCatalog
+            .filter(
+              (evolution) =>
+                !this.evolvedSkills.has(evolution.key) &&
+                evolution.requirements.includes(key) &&
+                this.canEvolve(evolution),
+            )
+            .map((evolution) => this.buildEvolutionOption(evolution))
+        : [];
+
+    if (immediateFusions.length) {
+      this.pausedForUpgrade = true;
+      this.callbacks.onLevelUp(immediateFusions, {
+        source: 'FUSION_OFFER',
+        title: 'SYNAPTIC FUSION',
+        subtitle: 'TWO MAXIMUM CIRCUITS CAN MERGE',
+      });
+    } else {
+      this.pausedForUpgrade = false;
+    }
+    this.emitHud();
+  }
+
+  cancelFusionOffer() {
     this.pausedForUpgrade = false;
     this.emitHud();
   }
@@ -581,6 +607,23 @@ export class GameEngine {
         this.getUpgradeLevel(key) >= definition.maxLevel
       );
     });
+  }
+
+  private hasFusion(a: UpgradeKey, b: UpgradeKey) {
+    return evolutionCatalog.some(
+      (evolution) =>
+        this.evolvedSkills.has(evolution.key) &&
+        evolution.requirements.includes(a) &&
+        evolution.requirements.includes(b),
+    );
+  }
+
+  private fusionCountFor(key: UpgradeKey) {
+    return evolutionCatalog.filter(
+      (evolution) =>
+        this.evolvedSkills.has(evolution.key) &&
+        evolution.requirements.includes(key),
+    ).length;
   }
 
   private getUpgradeDetail(key: UpgradeKey, nextLevel: number) {
