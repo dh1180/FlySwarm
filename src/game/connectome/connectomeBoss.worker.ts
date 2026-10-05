@@ -152,6 +152,7 @@ class LifEngine {
   private readonly g: Float32Array;
   private readonly refractory: Int16Array;
   private readonly inActive: Uint8Array;
+  private readonly isStim: Uint8Array;
   private readonly active: Int32Array;
   private readonly ring: Array<{ buf: Int32Array; n: number }>;
   private stimList: Int32Array<ArrayBufferLike> = new Int32Array(0);
@@ -177,6 +178,7 @@ class LifEngine {
     this.g = new Float32Array(this.n);
     this.refractory = new Int16Array(this.n);
     this.inActive = new Uint8Array(this.n);
+    this.isStim = new Uint8Array(this.n);
     this.active = new Int32Array(this.n);
     this.spikeCount = new Int32Array(this.n);
     this.ring = Array.from({ length: this.delaySteps }, () => ({
@@ -191,6 +193,7 @@ class LifEngine {
     this.g.fill(0);
     this.refractory.fill(0);
     this.inActive.fill(0);
+    this.isStim.fill(0);
     this.spikeCount.fill(0);
     this.activeCount = 0;
     this.stepCount = 0;
@@ -203,9 +206,13 @@ class LifEngine {
     indices: Int32Array<ArrayBufferLike>,
     rates?: Float32Array<ArrayBufferLike>,
   ) {
+    this.isStim.fill(0);
     this.stimList = indices;
     this.stimRate = rates ?? null;
-    for (const i of indices) this.touch(i);
+    for (const i of indices) {
+      this.isStim[i] = 1;
+      this.touch(i);
+    }
   }
 
   run(milliseconds: number) {
@@ -272,7 +279,7 @@ class LifEngine {
       if (vn > P.VTH) {
         this.v[i] = P.VRST;
         this.g[i] = 0;
-        this.refractory[i] = this.refractorySteps;
+        if (!this.isStim[i]) this.refractory[i] = this.refractorySteps;
         this.spikeCount[i] += 1;
         this.totalSpikes += 1;
         this.ringPush((this.stepCount + this.delaySteps - 1) % this.delaySteps, i);
@@ -281,7 +288,7 @@ class LifEngine {
         this.v[i] = vn;
         this.g[i] = gn;
         const dv = vn - P.V0;
-        if (Math.abs(dv) < 0.02 && Math.abs(gn) < 0.02) {
+        if (Math.abs(dv) < 0.02 && Math.abs(gn) < 0.02 && !this.isStim[i]) {
           this.inActive[i] = 0;
           this.v[i] = P.V0;
           this.g[i] = 0;
@@ -314,10 +321,14 @@ function sumCounts(ids: number[]) {
   return total;
 }
 
-function normalizedRate(before: number, after: number, count: number, ms: number) {
+function populationHz(before: number, after: number, count: number, ms: number) {
   if (!count) return 0;
-  const hz = Math.max(0, after - before) / count / (ms / 1000);
-  return 1 - Math.exp(-hz / 40);
+  return Math.max(0, after - before) / count / (ms / 1000);
+}
+
+function evoked(beforeHz: number, afterHz: number) {
+  const delta = Math.max(0, afterHz - beforeHz);
+  return 1 - Math.exp(-delta / 40);
 }
 
 async function loadBrain() {
@@ -394,7 +405,17 @@ function stepBrain(side: number, threat: number) {
   const stop = group('stop');
   const wing = group('wing');
 
-  const before = {
+  const groups = {
+    turnLeft,
+    turnRight,
+    walk,
+    backward,
+    escape,
+    stop,
+    wing,
+  };
+
+  const baselineStart = {
     turnLeft: sumCounts(turnLeft),
     turnRight: sumCounts(turnRight),
     walk: sumCounts(walk),
@@ -404,6 +425,22 @@ function stepBrain(side: number, threat: number) {
     wing: sumCounts(wing),
     total: engine.totalSpikes,
   };
+
+  // Match fly-brain-bench GLANCE.gap = 90 ms before the loom pulse.
+  engine.stimulate(new Int32Array(0));
+  engine.run(90);
+
+  const baselineEnd = {
+    turnLeft: sumCounts(turnLeft),
+    turnRight: sumCounts(turnRight),
+    walk: sumCounts(walk),
+    backward: sumCounts(backward),
+    escape: sumCounts(escape),
+    stop: sumCounts(stop),
+    wing: sumCounts(wing),
+  };
+
+  const responseStart = { ...baselineEnd, total: engine.totalSpikes };
 
   const ahead = Math.max(0, 1 - Math.abs(side) * 2.2) * threat;
   const leftDrive = Math.max(side < 0 ? -side * threat : 0, ahead * 0.8);
@@ -415,27 +452,62 @@ function stepBrain(side: number, threat: number) {
   stimulus.set(loomRight, loomLeft.length);
   const rates = new Float32Array(stimulus.length);
 
-  for (let i = 0; i < loomLeft.length; i += 1) rates[i] = 5 + leftDrive * maxHz;
-  for (let i = 0; i < loomRight.length; i += 1) rates[loomLeft.length + i] = 5 + rightDrive * maxHz;
+  for (let i = 0; i < loomLeft.length; i += 1) {
+    rates[i] = leftDrive * maxHz;
+  }
+  for (let i = 0; i < loomRight.length; i += 1) {
+    rates[loomLeft.length + i] = rightDrive * maxHz;
+  }
 
+  // Upstream GLANCE.width = 30 ms, GLANCE.readAt = 90 ms.
   engine.stimulate(stimulus, rates);
-  engine.run(32);
+  engine.run(30);
   engine.stimulate(new Int32Array(0));
-  engine.run(18);
+  engine.run(60);
 
-  const ms = 50;
-  const leftRate = normalizedRate(before.turnLeft, sumCounts(turnLeft), turnLeft.length, ms);
-  const rightRate = normalizedRate(before.turnRight, sumCounts(turnRight), turnRight.length, ms);
+  const responseEnd = {
+    turnLeft: sumCounts(turnLeft),
+    turnRight: sumCounts(turnRight),
+    walk: sumCounts(walk),
+    backward: sumCounts(backward),
+    escape: sumCounts(escape),
+    stop: sumCounts(stop),
+    wing: sumCounts(wing),
+    total: engine.totalSpikes,
+  };
+
+  const baseHz = {
+    turnLeft: populationHz(baselineStart.turnLeft, baselineEnd.turnLeft, groups.turnLeft.length, 90),
+    turnRight: populationHz(baselineStart.turnRight, baselineEnd.turnRight, groups.turnRight.length, 90),
+    walk: populationHz(baselineStart.walk, baselineEnd.walk, groups.walk.length, 90),
+    backward: populationHz(baselineStart.backward, baselineEnd.backward, groups.backward.length, 90),
+    escape: populationHz(baselineStart.escape, baselineEnd.escape, groups.escape.length, 90),
+    stop: populationHz(baselineStart.stop, baselineEnd.stop, groups.stop.length, 90),
+    wing: populationHz(baselineStart.wing, baselineEnd.wing, groups.wing.length, 90),
+  };
+
+  const responseHz = {
+    turnLeft: populationHz(responseStart.turnLeft, responseEnd.turnLeft, groups.turnLeft.length, 90),
+    turnRight: populationHz(responseStart.turnRight, responseEnd.turnRight, groups.turnRight.length, 90),
+    walk: populationHz(responseStart.walk, responseEnd.walk, groups.walk.length, 90),
+    backward: populationHz(responseStart.backward, responseEnd.backward, groups.backward.length, 90),
+    escape: populationHz(responseStart.escape, responseEnd.escape, groups.escape.length, 90),
+    stop: populationHz(responseStart.stop, responseEnd.stop, groups.stop.length, 90),
+    wing: populationHz(responseStart.wing, responseEnd.wing, groups.wing.length, 90),
+  };
+
+  const leftRate = evoked(baseHz.turnLeft, responseHz.turnLeft);
+  const rightRate = evoked(baseHz.turnRight, responseHz.turnRight);
 
   const output = {
     turn: Math.max(-1, Math.min(1, rightRate - leftRate)),
-    forward: normalizedRate(before.walk, sumCounts(walk), walk.length, ms),
-    backward: normalizedRate(before.backward, sumCounts(backward), backward.length, ms),
-    escape: normalizedRate(before.escape, sumCounts(escape), escape.length, ms),
-    stop: normalizedRate(before.stop, sumCounts(stop), stop.length, ms),
-    wing: normalizedRate(before.wing, sumCounts(wing), wing.length, ms),
-    activity: 1 - Math.exp(-(engine.totalSpikes - before.total) / 500),
-    spikes: engine.totalSpikes - before.total,
+    forward: evoked(baseHz.walk, responseHz.walk),
+    backward: evoked(baseHz.backward, responseHz.backward),
+    escape: evoked(baseHz.escape, responseHz.escape),
+    stop: evoked(baseHz.stop, responseHz.stop),
+    wing: evoked(baseHz.wing, responseHz.wing),
+    activity: 1 - Math.exp(-(responseEnd.total - responseStart.total) / 500),
+    spikes: responseEnd.total - responseStart.total,
   };
 
   post({ type: 'output', output });
