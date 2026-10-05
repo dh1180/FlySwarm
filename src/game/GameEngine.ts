@@ -1627,7 +1627,7 @@ export class GameEngine {
           damage:
             (9 + this.wave * 0.62) * boss.damageScale,
           life: 4.8,
-          color: '#b678ff',
+          color: strike.color,
           bossOwned: true,
         });
       }
@@ -2310,11 +2310,11 @@ export class GameEngine {
           y2: strike.y + randomRange(-7, 7),
           life: 0.34,
           maxLife: 0.34,
-          color: '#b678ff',
+          color: strike.color,
         });
       }
-      this.spawnParticles(strike.x, strike.y, '#b678ff', 34, 210);
-      this.spawnRing(strike.x, strike.y, 12, strike.radius, '#b678ff', 0.34, 7);
+      this.spawnParticles(strike.x, strike.y, strike.color, 34, 210);
+      this.spawnRing(strike.x, strike.y, 12, strike.radius, strike.color, 0.34, 7);
       this.screenShake = Math.max(this.screenShake, 9);
       strike.timer = -999;
     }
@@ -2881,7 +2881,7 @@ export class GameEngine {
 
   private killBoss() {
     if (!this.boss) return;
-    const { x, y, kind } = this.boss;
+    const { x, y, kind, stage } = this.boss;
     this.defeatedBosses.add(kind);
 
     this.spawnParticles(x, y, '#ffffff', 72, 270);
@@ -2910,14 +2910,16 @@ export class GameEngine {
       );
     }
 
-    this.kills += 50;
-    for (let i = 0; i < 32; i += 1) {
+    this.kills += 40 + stage * 15;
+    const bossOrbCount = 26 + stage * 7;
+    const bossOrbValue = 3 + Math.ceil(stage / 2);
+    for (let i = 0; i < bossOrbCount; i += 1) {
       this.orbs.push({
         x: x + randomRange(-34, 34),
         y: y + randomRange(-34, 34),
         vx: randomRange(-110, 110),
         vy: randomRange(-110, 110),
-        value: 4,
+        value: bossOrbValue,
       });
     }
 
@@ -2925,7 +2927,7 @@ export class GameEngine {
     this.bossStrikes = [];
     this.brain.reset();
 
-    if (this.defeatedBosses.size >= 3) {
+    if (this.defeatedBosses.size >= 5) {
       this.gameCleared = true;
       this.callbacks.onSound('gameClear');
       this.enemyShots = [];
@@ -2934,12 +2936,13 @@ export class GameEngine {
         wave: this.wave,
         seconds: this.time,
         bossesDefeated: this.defeatedBosses.size,
+        bossesTotal: 5,
       });
       this.emitHud();
       return;
     }
 
-    this.nextBossWave = this.wave + 3;
+    this.nextBossWave = this.wave + 2;
     this.emitHud();
   }
 
@@ -3356,7 +3359,7 @@ export class GameEngine {
       },
       skills: this.getOwnedSkills(),
       bossesDefeated: this.defeatedBosses.size,
-      bossesTotal: 3,
+      bossesTotal: 5,
       boss: this.boss
         ? {
             active: true,
@@ -3364,6 +3367,8 @@ export class GameEngine {
             name: this.boss.name,
             hp: this.boss.hp,
             maxHp: this.boss.maxHp,
+            stage: this.boss.stage,
+            totalStages: 5,
             brain: connectome,
             dopamine: this.dopamine.getSnapshot(),
           }
@@ -3597,12 +3602,7 @@ export class GameEngine {
     const brain = this.brain.getSnapshot();
     const output = brain.output;
     const scale = this.boss.radius / 34;
-    const color =
-      this.boss.kind === 'NEURAL_HUNTER'
-        ? '#ffcf57'
-        : this.boss.kind === 'STORM_BRAIN'
-          ? '#b678ff'
-          : '#c7ff45';
+    const color = this.getBossColor(this.boss.kind);
 
     ctx.save();
     ctx.translate(this.boss.x, this.boss.y);
@@ -3640,6 +3640,37 @@ export class GameEngine {
       }
     }
 
+    if (this.boss.kind === 'GLIAL_TITAN') {
+      ctx.strokeStyle = '#d7fff1';
+      ctx.lineWidth = 2.2;
+      for (let i = 0; i < 6; i += 1) {
+        const angle = (i / 6) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * 18 * scale, Math.sin(angle) * 18 * scale);
+        ctx.lineTo(Math.cos(angle) * 39 * scale, Math.sin(angle) * 39 * scale);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, 13 * scale, 0, TAU);
+      ctx.stroke();
+    }
+
+    if (this.boss.kind === 'CONNECTOME_APEX') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.4;
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i / 8) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * 22 * scale, Math.sin(angle) * 22 * scale);
+        ctx.lineTo(Math.cos(angle) * 46 * scale, Math.sin(angle) * 46 * scale);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#ff5b63';
+      ctx.beginPath();
+      ctx.arc(0, 0, 17 * scale, 0, TAU);
+      ctx.stroke();
+    }
+
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#0a0e12';
     ctx.beginPath();
@@ -3662,13 +3693,13 @@ export class GameEngine {
     ctx.font = '900 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      `${this.boss.name} · FULL CONNECTOME`,
+      `STAGE ${this.boss.stage}/5 · ${this.boss.name} · FULL CONNECTOME`,
       this.boss.x,
       this.boss.y - this.boss.radius - 48,
     );
 
     if (this.bossPulseFlash > 0) {
-      const pulseRadius = this.boss.kind === 'STORM_BRAIN' ? 250 : 205;
+      const pulseRadius = this.getBossPulseRadius(this.boss);
       ctx.strokeStyle = `rgba(255,91,99,${this.bossPulseFlash * 1.8})`;
       ctx.lineWidth = 8;
       ctx.beginPath();
