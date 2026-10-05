@@ -218,10 +218,17 @@ export type DopamineHud = {
 
 export type BossHud = {
   active: boolean;
-  kind: 'NEURAL_HUNTER' | 'STORM_BRAIN' | 'SWARM_QUEEN';
+  kind:
+    | 'NEURAL_HUNTER'
+    | 'STORM_BRAIN'
+    | 'SWARM_QUEEN'
+    | 'GLIAL_TITAN'
+    | 'CONNECTOME_APEX';
   name: string;
   hp: number;
   maxHp: number;
+  stage: number;
+  totalStages: number;
   brain: WholeBrainSnapshot;
   dopamine: DopamineHud;
 };
@@ -265,6 +272,7 @@ export type GameClearSnapshot = {
   wave: number;
   seconds: number;
   bossesDefeated: number;
+  bossesTotal: number;
 };
 
 export type ChestRarity = 'COMMON' | 'RARE' | 'MYTHIC';
