@@ -130,13 +130,13 @@ export default function FlySwarmGame() {
   };
 
   const chooseUpgrade = (key: SkillKey) => {
-    engineRef.current?.applyUpgrade(key);
     setUpgrades([]);
     setRewardContext({
       source: 'LEVEL_UP',
       title: 'LEVEL UP',
       subtitle: 'CHOOSE A MUTATION',
     });
+    engineRef.current?.applyUpgrade(key);
   };
 
   const cancelFusion = () => {
