@@ -229,6 +229,48 @@ Main Game Thread
 - Recurrent Circuit — 적중 시 추가 투사체 ricochet
 - Apoptosis Trigger — 저체력 적 추가 처형 피해
 
+## 🎁 Reward Cache System
+
+몹 처치 시 낮은 확률로 필드에 Reward Cache가 드랍됩니다.
+
+드랍 확률:
+
+| Enemy | Chest Drop |
+|---|---:|
+| DRONE | 1.4% |
+| DARTER | 1.8% |
+| BRUTE | 3.5% |
+| SPITTER | 2.6% |
+| BOMBER | 2.6% |
+
+드랍된 상자의 내부 등급:
+
+| Cache | Chance | Reward |
+|---|---:|---|
+| COMMON | 91.5% | 기존 레벨업과 유사한 3개 Mutation 선택 |
+| RARE | 7.5% | RARE / NEURAL 위주의 강화된 3택 |
+| MYTHIC | 1% | 4개 선택지 + Evolution 가능 시 우선 노출 + NEURAL 우선 |
+
+상자는 필드에서 직접 접촉하면 열리며, 일정 시간이 지나면 사라집니다.
+MYTHIC 확률은 Chest가 드랍된 뒤 다시 1%이므로 실제 몹 한 마리 기준으로는 매우 낮습니다.
+
+## 🎨 Custom Skill Icon Set
+
+31개 기본 Mutation과 3개 Evolution 모두 FlySwarm 전용 SVG 아이콘을 사용합니다.
+
+- Emoji / 외부 Image Asset 미사용
+- React Inline SVG
+- 각 스킬에 고유한 바이오 / 회로 / 전기 / 무기 모티프 적용
+- Skill별 Accent Color
+- Upgrade Card / Acquired Skill HUD / Active Thunder Button에서 동일 Icon 재사용
+- Evolution Icon은 두 원본 능력의 시각적 특징을 결합한 별도 디자인
+
+아이콘 구현:
+
+```text
+src/components/SkillIcon.tsx
+```
+
 ## 🧬 Skill Level / Evolution
 
 모든 기본 Mutation에는 최대 레벨이 있으며, Max Level에 도달한 스킬은 일반 레벨업 선택지에서 제거됩니다.
