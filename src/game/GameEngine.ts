@@ -54,6 +54,12 @@ type Boss = {
   damageScale: number;
   speedScale: number;
   cooldownScale: number;
+  angularVelocity: number;
+  turnHold: number;
+  lastTurnSign: number;
+  threatActive: boolean;
+  threatPeak: number;
+  dodgeRewardCooldown: number;
 };
 
 type EnemyShot = {
@@ -1363,6 +1369,12 @@ export class GameEngine {
       damageScale,
       speedScale,
       cooldownScale,
+      angularVelocity: 0,
+      turnHold: 0,
+      lastTurnSign: 0,
+      threatActive: false,
+      threatPeak: 0,
+      dodgeRewardCooldown: 0,
     };
 
     this.bossBrainTimer = 0;
