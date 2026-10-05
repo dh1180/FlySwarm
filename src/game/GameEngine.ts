@@ -681,36 +681,36 @@ export class GameEngine {
   }
 
   private getOwnedSkills(): OwnedSkill[] {
-    return this.ownedSkillOrder.flatMap((key) => {
+    return this.ownedSkillOrder.reduce<OwnedSkill[]>((skills, key) => {
       if (this.isEvolutionKey(key)) {
         const evolution = evolutionCatalog.find((item) => item.key === key);
-        if (!evolution || !this.evolvedSkills.has(key)) return [];
-        return [
-          {
+        if (evolution && this.evolvedSkills.has(key)) {
+          skills.push({
             key,
             title: evolution.title,
             level: 1,
             maxLevel: 1,
-            rarity: 'EVOLUTION' as const,
+            rarity: 'EVOLUTION',
             evolved: true,
-          },
-        ];
+          });
+        }
+        return skills;
       }
 
       const definition = upgradeCatalog.find((item) => item.key === key);
       const level = this.getUpgradeLevel(key);
-      if (!definition || level <= 0) return [];
-      return [
-        {
+      if (definition && level > 0) {
+        skills.push({
           key,
           title: definition.title,
           level,
           maxLevel: definition.maxLevel,
           rarity: definition.rarity,
           evolved: false,
-        },
-      ];
-    });
+        });
+      }
+      return skills;
+    }, []);
   }
 
   setTouchMove(x: number, y: number) {
