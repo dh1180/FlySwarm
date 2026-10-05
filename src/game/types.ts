@@ -133,9 +133,21 @@ export type UpgradeKey =
   | 'execute';
 
 export type EvolutionKey =
-  | 'stormLance'
-  | 'ionCataclysm'
-  | 'neuralSingularity';
+  | 'ganglionResonance'
+  | 'vesicleSecretionHalo'
+  | 'axonalSatellite'
+  | 'synapticLattice'
+  | 'glialOrbitalCascade'
+  | 'depolarizationToxinBurst'
+  | 'spikePropagation'
+  | 'ganglionWavefront'
+  | 'calciumWave'
+  | 'venomAxon'
+  | 'neuroglialMatrix'
+  | 'hemolymphCascade'
+  | 'axonMesh'
+  | 'synapticBarrage'
+  | 'glialCalciumStorm';
 
 export type SkillKey = UpgradeKey | EvolutionKey;
 export type SkillRarity = 'COMMON' | 'RARE' | 'NEURAL' | 'EVOLUTION';
@@ -260,7 +272,8 @@ export type RewardSource =
   | 'LEVEL_UP'
   | 'CHEST_COMMON'
   | 'CHEST_RARE'
-  | 'CHEST_MYTHIC';
+  | 'CHEST_MYTHIC'
+  | 'FUSION_OFFER';
 
 export type RewardContext = {
   source: RewardSource;
