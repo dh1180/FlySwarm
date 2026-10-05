@@ -1,63 +1,164 @@
 # FlySwarm 🪰
 
-> **10,000 flies. One human. Survive the swarm.**
+> **Utility swarm. Full-connectome boss. Survive.**
 
-FlySwarm은 뱀서류(Vampire Survivors-like) 생존 게임 구조에 **다중 에이전트 군집 AI**를 결합한 브라우저 게임 프로젝트입니다.
+FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라우저 게임 프로젝트입니다.
 
-각 초파리는 단순히 플레이어를 직선 추적하지 않습니다. 개체마다 서로 다른 `aggression`, `fear`, `social`, `smell`, `speed` 성향을 가지고 주변 상황을 평가해 행동을 선택합니다.
+- 일반 초파리 수백 마리: 가벼운 **Utility AI + Steering Behavior**
+- 보스: FlyWire FAFB v783에서 파생된 **전체 source connectome + leaky integrate-and-fire(LIF) dynamics**
 
 ## 🎮 현재 구현
 
 - WASD / 방향키 이동
-- 가장 가까운 적을 향한 자동 공격
-- 경험치 오브 및 레벨업
-- 3개 선택지 방식의 업그레이드
-- 웨이브 증가 및 적 수 / 체력 / 속도 스케일링
-- 게임 오버 및 재시작
-- 개별 초파리 클릭 후 AI 성향 확인
+- 가장 가까운 적 자동 공격
+- 경험치 Orb / 레벨업
+- 17종 레벨업 Mutation
+- 웨이브 증가 및 군집 진화
+- 초파리 개체별 personality genome
+- Spatial Hash 기반 근접 탐색
+- 전체화면 모드
+- 3웨이브부터 Full-Connectome Boss
+- 보스 neural output 실시간 HUD
+- 일반 초파리 Agent Inspector
+- Game Over / Restart
 
-## 🧠 Fly AI
+## 🧠 일반 초파리 AI
 
-각 초파리는 매 프레임 아래 입력을 사용합니다.
+일반몹은 브라우저에서 수백 마리를 동시에 처리하기 위해 가벼운 Utility AI를 사용합니다.
 
-- 플레이어와의 거리
+입력:
+
+- 플레이어 거리
 - 주변 초파리 밀도
 - 가까운 투사체
 - 현재 HP
-- 개체별 personality genome
+- aggression / fear / social / smell / speed genome
 
-행동 후보:
+행동:
 
-- `CHASE`: 플레이어 추적
-- `FLEE`: 투사체 및 위협 회피
-- `SWARM`: 주변 개체와 cohesion / separation 기반 군집 이동
-- `WANDER`: 초기 / 기본 상태
+- `CHASE`
+- `FLEE`
+- `SWARM`
+- `WANDER`
 
-현재 버전은 **Utility AI + Steering Behavior** 기반입니다.
+주변 개체 탐색에는 Spatial Hash를 사용하므로 모든 개체 쌍을 비교하지 않습니다.
 
-## 🧬 Swarm Evolution
+## 🧬 Full-Connectome Boss
 
-한 웨이브는 28초입니다.
+보스는 일반몹의 Utility AI를 사용하지 않습니다.
 
-웨이브 전환 시 현재 생존해 있는 개체들의 평균 성향을 구하고 기존 Swarm Genome과 혼합합니다. 이후 생성되는 다음 세대 초파리는 변경된 평균값을 중심으로 다시 변이됩니다.
+게임 시작 시 별도 Web Worker가 전체 connectome package를 백그라운드에서 불러옵니다.
 
-즉, 플레이 시간이 길어질수록 군집의 평균 특성이 조금씩 변화합니다.
+사용하는 Full source profile:
 
-## ⚡ Performance
+- **138,639 neuron slots**
+- **15,091,983 directed neuron pairs**
+- **54,492,922 aggregated synapses**
+- threshold = 1
+- connection pair pruning 없음
+- synapse count clipping 없음
 
-모든 초파리 쌍을 비교하면 개체 수가 증가할수록 연산량이 급격히 늘어납니다.
+이 패키지는 FlyWire FAFB v783 데이터를 기반으로 만들어진 공개 브라우저용 source-complete graph입니다.
 
-FlySwarm은 `SpatialHash`를 사용하여 각 개체 주변의 제한된 셀만 조회합니다.
+> FlyWire 원 논문은 FAFB v783 전체에 **139,255 proofread neurons**와 **54.5 million synapses**를 보고합니다.  
+> FlySwarm이 사용하는 simulation source graph의 index space는 연결 모델 입력에 포함된 138,639개 뉴런입니다. 따라서 “Full”은 **이 source graph의 모든 pair를 사용한다는 의미**이며, 생물학적 뇌의 모든 세포 상태·수용체·신경조절·몸체를 완전하게 재현한다는 뜻은 아닙니다.
 
+### Boss signal path
+
+```text
+Player position / threat
+        │
+        ▼
+Synthetic visual loom
+        │
+        ▼
+Left / Right LPLC2 population
+        │
+        ▼
+138,639-neuron LIF simulation
+15,091,983 directed pairs
+        │
+        ▼
+Descending / motor channels
+        │
+        ├─ DNa02 → turn
+        ├─ DNa01 / DNb01 / DNg13 → forward
+        ├─ MDN → backward
+        ├─ DNp01 → escape
+        ├─ DNp09 → stop
+        └─ DNp18 / DNp01 → wing drive
+        │
+        ▼
+Boss body controller
 ```
-naive neighbor search
-O(N²)
 
-FlySwarm
-Spatial Hash → local neighborhood query
+신경 연결 가중치는 게임 중 학습시키거나 변경하지 않습니다. 게임은 고정 connectome 위에서 LIF state를 진행하고, sensory input과 motor readout을 게임 세계에 연결합니다.
+
+## ⚡ Whole-brain runtime
+
+30MB급 전체 연결 graph를 메인 Canvas thread에서 돌리면 게임 프레임이 끊길 수 있으므로 Full-Connectome Boss는 별도 Web Worker에서 실행합니다.
+
+게임 엔진과 whole-brain simulation 사이에는 작은 입력/출력 값만 전달합니다.
+
+```text
+Main Game Thread
+  └─ player / bullets / physics / swarm
+              │
+              │ side + threat
+              ▼
+Connectome Web Worker
+  └─ Full graph + LIF
+              │
+              │ neural readouts
+              ▼
+Main Game Thread
+  └─ boss movement / escape / pulse
 ```
 
-현재 동시 초파리 수는 최대 약 360마리로 제한되어 있습니다.
+전체 connectome package는 게임 시작 뒤 lazy background load되며, integrity metadata와 SHA-256을 검사합니다. 정상 데이터가 없으면 더 작은 graph로 조용히 대체하지 않습니다.
+
+## 🧪 LIF approximation
+
+현재 neuron dynamics는 Shiu et al. 계열의 단순화된 leaky integrate-and-fire parameterization을 사용합니다.
+
+이것은 실제 초파리의 의식, 기억, 전체 생리 상태를 복제하는 모델이 아닙니다. 특히 다음 항목은 공학적으로 만든 인터페이스입니다.
+
+- 게임 화면 → LPLC2 sensory drive
+- shared LIF parameters
+- descending-neuron population → 2D game movement mapping
+- boss hitbox / HP / 공격 효과
+
+따라서 정확한 표현은:
+
+> **“A game boss controlled by a whole-connectome-derived spiking simulation.”**
+
+이지,
+
+> “실제 초파리의 정신을 업로드했다”
+
+가 아닙니다.
+
+## ⬆️ Mutations
+
+현재 레벨업 선택지:
+
+- Heavy Shot — damage
+- Synapse Rush — fire rate
+- Split Signal — multishot
+- Motor Cortex — movement speed
+- Thick Skin — max HP / heal
+- Axon Piercer — piercing
+- Dopamine Field — XP magnet
+- Fast Conduction — bullet speed
+- Giant Vesicle — bullet size
+- Burst Firing — critical chance
+- Homeostasis — HP regeneration
+- Chitin Layer — damage reduction
+- Motor Shock — knockback
+- Satellite Neuron — orbiting weapon
+- Action Potential Nova — periodic area damage
+- Memory Consolidation — XP gain
+- Connectome Breaker — boss damage
 
 ## 🛠 Stack
 
@@ -65,6 +166,8 @@ Spatial Hash → local neighborhood query
 - TypeScript
 - Vite
 - HTML Canvas
+- Web Worker
+- Leaky Integrate-and-Fire simulation
 - Utility AI
 - Steering Behavior
 - Spatial Hash
@@ -83,17 +186,18 @@ npm run build
 npm run preview
 ```
 
-## 🔬 Scientific Note
+> Full-Connectome Boss는 실행 중 약 30.7MB의 공개 graph package를 외부 source에서 불러옵니다. 네트워크가 차단된 환경에서는 일반 swarm 게임은 실행되지만 whole-brain boss는 로드되지 않습니다.
 
-FlySwarm은 실제 초파리의 전체 신경계를 재현한 생물학적 시뮬레이션이 아닙니다.
+## 📚 Data / model provenance
 
-현재 `FLY` 에이전트는 초파리의 군집성 및 행동 선택에서 아이디어를 얻은 **게임용 인공 에이전트**입니다.
+FlyWire:
 
-향후 확장 아이디어:
+- Dorkenwald et al. **Neuronal wiring diagram of an adult brain.** Nature 634, 124–138 (2024).
+- Schlegel et al. **Whole-brain annotation and multi-connectome cell typing of Drosophila.** Nature 634, 139–152 (2024).
 
-- FlyWire connectome 데이터에서 일부 회로 구조 추출
-- 작은 neural controller 실험
-- Web Worker 기반 수천 개 에이전트 병렬 업데이트
-- 실제 행동 데이터 기반 파라미터 보정
-- 군집 유전 알고리즘 고도화
-- 보스형 Hive Mind / Queen Fly
+Whole-brain web package / browser implementation reference:
+
+- RaphaelSR/fly-brain-bench
+- pinned source commit: `825122b532a2196f144c78c4b92c4c1371bc57c4`
+
+See [THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) and [docs/CONNECTOME_BOSS.md](./docs/CONNECTOME_BOSS.md).

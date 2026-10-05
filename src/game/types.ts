@@ -32,6 +32,7 @@ export type Bullet = {
   damage: number;
   pierce: number;
   hit: Set<number>;
+  critical: boolean;
 };
 
 export type Orb = {
@@ -53,11 +54,24 @@ export type Player = {
   fireInterval: number;
   bulletSpeed: number;
   bulletCount: number;
+  bulletSize: number;
   pierce: number;
   magnet: number;
   level: number;
   xp: number;
   xpNeed: number;
+  critChance: number;
+  critMultiplier: number;
+  regen: number;
+  armor: number;
+  knockback: number;
+  orbitalCount: number;
+  orbitalDamage: number;
+  novaInterval: number;
+  novaTimer: number;
+  novaDamage: number;
+  xpGain: number;
+  bossDamage: number;
 };
 
 export type UpgradeKey =
@@ -67,12 +81,23 @@ export type UpgradeKey =
   | 'speed'
   | 'health'
   | 'pierce'
-  | 'magnet';
+  | 'magnet'
+  | 'bulletSpeed'
+  | 'bulletSize'
+  | 'crit'
+  | 'regen'
+  | 'armor'
+  | 'knockback'
+  | 'orbital'
+  | 'nova'
+  | 'xpGain'
+  | 'bossDamage';
 
 export type UpgradeOption = {
   key: UpgradeKey;
   title: string;
   description: string;
+  rarity: 'COMMON' | 'RARE' | 'NEURAL';
 };
 
 export type SelectedFly = {
@@ -81,6 +106,34 @@ export type SelectedFly = {
   genome: Genome;
   hp: number;
   maxHp: number;
+};
+
+export type WholeBrainOutput = {
+  turn: number;
+  forward: number;
+  backward: number;
+  escape: number;
+  stop: number;
+  wing: number;
+  activity: number;
+  spikes: number;
+};
+
+export type WholeBrainSnapshot = {
+  status: 'idle' | 'loading' | 'ready' | 'error';
+  progress: number;
+  neurons: number;
+  pairs: number;
+  synapses: number;
+  error: string | null;
+  output: WholeBrainOutput;
+};
+
+export type BossHud = {
+  active: boolean;
+  hp: number;
+  maxHp: number;
+  brain: WholeBrainSnapshot;
 };
 
 export type HudSnapshot = {
@@ -95,6 +148,8 @@ export type HudSnapshot = {
   enemyCount: number;
   swarmGenome: Genome;
   selected: SelectedFly | null;
+  boss: BossHud | null;
+  connectome: WholeBrainSnapshot;
 };
 
 export type GameOverSnapshot = {
