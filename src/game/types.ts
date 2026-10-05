@@ -280,3 +280,24 @@ export type RewardContext = {
   title: string;
   subtitle: string;
 };
+
+
+export type GameSoundEvent =
+  | 'shot'
+  | 'enemyDeath'
+  | 'playerHit'
+  | 'levelUp'
+  | 'upgrade'
+  | 'fusionReady'
+  | 'fusion'
+  | 'chestCommon'
+  | 'chestRare'
+  | 'chestMythic'
+  | 'bossSpawn'
+  | 'bossStrikeCharge'
+  | 'bossStrike'
+  | 'bossDeath'
+  | 'axonSpike'
+  | 'calciumCascade'
+  | 'gameOver'
+  | 'gameClear';

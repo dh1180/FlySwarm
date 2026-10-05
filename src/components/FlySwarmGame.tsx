@@ -5,6 +5,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from 'react';
 import { GameEngine } from '../game/GameEngine';
+import { AudioManager } from '../audio/AudioManager';
 import SkillIcon from './SkillIcon';
 import type {
   GameClearSnapshot,
@@ -71,7 +72,10 @@ export default function FlySwarmGame() {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const joystickRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
+  const audioRef = useRef<AudioManager | null>(null);
   const [started, setStarted] = useState(false);
+  const [musicOn, setMusicOn] = useState(true);
+  const [sfxOn, setSfxOn] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
   const [hud, setHud] = useState(initialHud);
   const [upgrades, setUpgrades] = useState<UpgradeOption[]>([]);
@@ -87,6 +91,9 @@ export default function FlySwarmGame() {
   useEffect(() => {
     if (!canvasRef.current) return;
 
+    const audio = new AudioManager();
+    audioRef.current = audio;
+
     const engine = new GameEngine(canvasRef.current, {
       onHud: setHud,
       onLevelUp: (options, context) => {
@@ -95,6 +102,7 @@ export default function FlySwarmGame() {
       },
       onGameOver: setGameOver,
       onGameClear: setGameClear,
+      onSound: (event) => audio.play(event),
     });
     engineRef.current = engine;
 
@@ -106,13 +114,23 @@ export default function FlySwarmGame() {
     return () => {
       document.removeEventListener('fullscreenchange', syncFullscreen);
       engine.destroy();
+      audio.destroy();
+      audioRef.current = null;
     };
   }, []);
+
+  const activateAudio = async () => {
+    const audio = audioRef.current;
+    if (!audio) return;
+    await audio.unlock();
+    audio.startMusic();
+  };
 
   const start = () => {
     setStarted(true);
     setGameOver(null);
     setGameClear(null);
+    void activateAudio();
     engineRef.current?.start();
   };
 
@@ -126,6 +144,7 @@ export default function FlySwarmGame() {
       title: 'LEVEL UP',
       subtitle: 'CHOOSE A MUTATION',
     });
+    void activateAudio();
     engineRef.current?.restart();
   };
 
@@ -147,6 +166,24 @@ export default function FlySwarmGame() {
       title: 'LEVEL UP',
       subtitle: 'CHOOSE A MUTATION',
     });
+  };
+
+  const toggleMusic = () => {
+    const next = !musicOn;
+    setMusicOn(next);
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.setMusicEnabled(next);
+    if (next) void activateAudio();
+  };
+
+  const toggleSfx = () => {
+    const next = !sfxOn;
+    setSfxOn(next);
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.setSfxEnabled(next);
+    if (next) void audio.unlock();
   };
 
   const toggleFullscreen = async () => {
@@ -216,6 +253,24 @@ export default function FlySwarmGame() {
         </div>
 
         <div className="topbar-actions">
+          <div className="audio-controls" aria-label="Audio controls">
+            <button
+              type="button"
+              className={`audio-toggle ${musicOn ? 'on' : 'off'}`}
+              onClick={toggleMusic}
+              aria-pressed={musicOn}
+            >
+              MUSIC <b>{musicOn ? 'ON' : 'OFF'}</b>
+            </button>
+            <button
+              type="button"
+              className={`audio-toggle ${sfxOn ? 'on' : 'off'}`}
+              onClick={toggleSfx}
+              aria-pressed={sfxOn}
+            >
+              SFX <b>{sfxOn ? 'ON' : 'OFF'}</b>
+            </button>
+          </div>
           <div className="topbar-stats">
             <b>WAVE {hud.wave}</b>
             <b>{hud.kills} KILLS</b>
@@ -311,7 +366,7 @@ export default function FlySwarmGame() {
             <p>EVERY FLY THINKS. THE BOSS GETS THE WHOLE BRAIN.</p>
             <h2>SURVIVE<br/>THE SWARM.</h2>
             <p className="overlay-copy">
-              WASD / 방향키로 이동하세요. 기본 공격은 자동입니다.<br/>
+              WASD / 방향키로 이동하세요. 기본 공격은 자동입니다. 시작과 함께 Neural Pulse soundtrack이 재생됩니다.<br/>
               Axonal Spike는 획득 후 가장 가까운 적을 자동으로 공격하고, Glial Matrix는 마우스/터치 방향을 참고해 생성됩니다.<br/>
               공격 스킬 두 개가 MAX가 되는 순간 가능한 Synaptic Fusion을 바로 제안하며, 원하지 않으면 나중으로 미룰 수 있습니다.<br/>
               일반몹은 5개 전투 아키타입의 Utility AI, 보스 3종은 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
