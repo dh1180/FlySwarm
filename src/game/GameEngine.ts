@@ -1574,7 +1574,8 @@ export class GameEngine {
       });
     }
 
-    this.callbacks.onSound('shot');  }
+    this.callbacks.onSound('shot');
+  }
 
   private updateBullets(dt: number) {
     for (const bullet of this.bullets) {
