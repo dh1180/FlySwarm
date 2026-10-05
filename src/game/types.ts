@@ -191,6 +191,14 @@ export type BossHud = {
   dopamine: DopamineHud;
 };
 
+export type AbilityHud = {
+  autoLanceLevel: number;
+  lightningLevel: number;
+  lightningCooldown: number;
+  lightningMaxCooldown: number;
+  xpPickupRadius: number;
+};
+
 export type HudSnapshot = {
   hp: number;
   maxHp: number;
@@ -205,6 +213,7 @@ export type HudSnapshot = {
   selected: SelectedFly | null;
   boss: BossHud | null;
   connectome: WholeBrainSnapshot;
+  abilities: AbilityHud;
 };
 
 export type GameOverSnapshot = {
