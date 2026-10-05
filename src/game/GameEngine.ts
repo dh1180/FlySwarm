@@ -1403,6 +1403,80 @@ export class GameEngine {
     this.brain.reset();
   }
 
+  private getBossProjectileThreat(boss: Boss) {
+    const horizon = 0.86 + boss.stage * 0.045;
+    let best = {
+      score: 0,
+      evadeX: 0,
+      evadeY: 0,
+      side: 0,
+      timeToImpact: horizon,
+      closestDistance: Infinity,
+    };
+
+    for (const bullet of this.bullets) {
+      if (bullet.life <= 0 || bullet.hit.has(BOSS_HIT_ID)) continue;
+
+      const relX = bullet.x - boss.x;
+      const relY = bullet.y - boss.y;
+      const relVx = bullet.vx - boss.vx;
+      const relVy = bullet.vy - boss.vy;
+      const relativeSpeedSq = relVx * relVx + relVy * relVy;
+      if (relativeSpeedSq < 1) continue;
+
+      const closingDot = relX * relVx + relY * relVy;
+      if (closingDot >= 0) continue;
+
+      const timeToImpact = -closingDot / relativeSpeedSq;
+      if (timeToImpact <= 0 || timeToImpact > horizon) continue;
+
+      const closestX = relX + relVx * timeToImpact;
+      const closestY = relY + relVy * timeToImpact;
+      const closestDistance = Math.hypot(closestX, closestY);
+      const dangerRadius =
+        boss.radius + bullet.radius + 52 + boss.stage * 5;
+      if (closestDistance >= dangerRadius) continue;
+
+      const timeScore = 1 - timeToImpact / horizon;
+      const pathScore = 1 - closestDistance / dangerRadius;
+      const score = clamp(timeScore * 0.58 + pathScore * 0.72, 0, 1);
+      if (score <= best.score) continue;
+
+      const bulletDirection = normalize(bullet.vx, bullet.vy);
+      let evadeX = -bulletDirection.y;
+      let evadeY = bulletDirection.x;
+
+      const awayX = -closestX;
+      const awayY = -closestY;
+      const separationDot = evadeX * awayX + evadeY * awayY;
+      if (separationDot < 0) {
+        evadeX *= -1;
+        evadeY *= -1;
+      } else if (Math.abs(separationDot) < 0.001) {
+        const cross =
+          bullet.vx * (boss.y - bullet.y) -
+          bullet.vy * (boss.x - bullet.x);
+        if (cross < 0) {
+          evadeX *= -1;
+          evadeY *= -1;
+        }
+      }
+
+      const rightX = -Math.sin(boss.heading);
+      const rightY = Math.cos(boss.heading);
+      best = {
+        score,
+        evadeX,
+        evadeY,
+        side: clamp(evadeX * rightX + evadeY * rightY, -1, 1),
+        timeToImpact,
+        closestDistance,
+      };
+    }
+
+    return best;
+  }
+
   private updateBoss(dt: number) {
     if (!this.boss) return;
     const boss = this.boss;
@@ -1412,6 +1486,50 @@ export class GameEngine {
     this.bossBrainTimer += dt;
     boss.pulseCooldown = Math.max(0, boss.pulseCooldown - dt);
     boss.specialCooldown = Math.max(0, boss.specialCooldown - dt);
+    boss.dodgeRewardCooldown = Math.max(
+      0,
+      boss.dodgeRewardCooldown - dt,
+    );
+
+    const projectileThreat = this.getBossProjectileThreat(boss);
+    if (projectileThreat.score > 0.2) {
+      if (!boss.threatActive) {
+        this.spawnParticles(
+          boss.x,
+          boss.y,
+          this.getBossColor(boss.kind),
+          5,
+          65,
+        );
+      }
+      boss.threatActive = true;
+      boss.threatPeak = Math.max(
+        boss.threatPeak,
+        projectileThreat.score,
+      );
+    } else if (
+      boss.threatActive &&
+      projectileThreat.score < 0.06
+    ) {
+      if (
+        boss.threatPeak >= 0.3 &&
+        boss.dodgeRewardCooldown <= 0
+      ) {
+        this.bossRewardBuffer += 0.08 + boss.threatPeak * 0.12;
+        boss.dodgeRewardCooldown = 0.5;
+        this.spawnRing(
+          boss.x,
+          boss.y,
+          boss.radius + 4,
+          boss.radius + 20,
+          this.getBossColor(boss.kind),
+          0.18,
+          2,
+        );
+      }
+      boss.threatActive = false;
+      boss.threatPeak = 0;
+    }
 
     if (this.bossBrainTimer >= 0.32) {
       this.bossBrainTimer = 0;
@@ -1431,32 +1549,34 @@ export class GameEngine {
       const dy = this.player.y - boss.y;
       const distance = Math.hypot(dx, dy) || 1;
 
-      let nearestBullet = Infinity;
-      for (const bullet of this.bullets) {
-        nearestBullet = Math.min(
-          nearestBullet,
-          Math.hypot(bullet.x - boss.x, bullet.y - boss.y),
-        );
-      }
-
-      const bulletThreat = Number.isFinite(nearestBullet)
-        ? clamp(1 - nearestBullet / 210, 0, 1)
-        : 0;
       const towardPlayer = normalize(dx, dy);
       const rightX = -Math.sin(boss.heading);
       const rightY = Math.cos(boss.heading);
-      const side = clamp(
+      const playerSide = clamp(
         towardPlayer.x * rightX + towardPlayer.y * rightY,
+        -1,
+        1,
+      );
+      const dodgeWeight = clamp(
+        projectileThreat.score * 1.2,
+        0,
+        1,
+      );
+      const sensorySide = clamp(
+        playerSide * (1 - dodgeWeight) +
+          projectileThreat.side * dodgeWeight,
         -1,
         1,
       );
       const proximity = clamp(1 - distance / 1050, 0, 1);
       const threat = clamp(
-        0.08 + proximity * 0.62 + bulletThreat * 0.78,
+        0.06 +
+          proximity * 0.46 +
+          projectileThreat.score * 0.98,
         0,
         1,
       );
-      this.brain.step(side, threat);
+      this.brain.step(sensorySide, threat);
     }
 
     const out = this.brain.getSnapshot().output;
@@ -1464,7 +1584,48 @@ export class GameEngine {
     const dy = this.player.y - boss.y;
     const distance = Math.hypot(dx, dy) || 1;
 
-    boss.heading += this.bossPolicyTurn * 4.2 * boss.speedScale * dt;
+    const turnSign =
+      Math.abs(this.bossPolicyTurn) > 0.18
+        ? Math.sign(this.bossPolicyTurn)
+        : 0;
+
+    if (turnSign !== 0 && turnSign === boss.lastTurnSign) {
+      boss.turnHold += dt;
+    } else if (turnSign !== 0) {
+      boss.turnHold = 0;
+      boss.lastTurnSign = turnSign;
+    } else {
+      boss.turnHold = Math.max(0, boss.turnHold - dt * 1.8);
+      if (boss.turnHold <= 0.05) boss.lastTurnSign = 0;
+    }
+
+    const antiOrbit =
+      projectileThreat.score > 0.2
+        ? 1
+        : clamp(
+            1 - Math.max(0, boss.turnHold - 0.85) * 0.4,
+            0.28,
+            1,
+          );
+    const dodgeTurn =
+      projectileThreat.side *
+      projectileThreat.score *
+      (1.45 + boss.stage * 0.1);
+    const targetAngularVelocity =
+      this.bossPolicyTurn *
+        3.75 *
+        boss.speedScale *
+        antiOrbit +
+      dodgeTurn;
+
+    const angularResponse =
+      projectileThreat.score > 0.2 ? 10 : 5.2;
+    boss.angularVelocity +=
+      (targetAngularVelocity - boss.angularVelocity) *
+      clamp(dt * angularResponse, 0, 1);
+    boss.angularVelocity *= Math.exp(-dt * 0.42);
+    boss.heading += boss.angularVelocity * dt;
+
     const forward = {
       x: Math.cos(boss.heading),
       y: Math.sin(boss.heading),
@@ -1496,8 +1657,25 @@ export class GameEngine {
       drive *= 1.28;
     }
 
-    const desiredX = forward.x * drive;
-    const desiredY = forward.y * drive;
+    let desiredX = forward.x * drive;
+    let desiredY = forward.y * drive;
+
+    if (projectileThreat.score > 0) {
+      const imminentBoost =
+        1 +
+        clamp(
+          (0.3 - projectileThreat.timeToImpact) / 0.3,
+          0,
+          1,
+        ) *
+          0.65;
+      const reflexStrength =
+        (125 + boss.stage * 24) *
+        projectileThreat.score *
+        imminentBoost;
+      desiredX += projectileThreat.evadeX * reflexStrength;
+      desiredY += projectileThreat.evadeY * reflexStrength;
+    }
     const baseResponse =
       boss.kind === 'NEURAL_HUNTER'
         ? 5
@@ -1934,6 +2112,8 @@ export class GameEngine {
           this.boss.radius + bullet.radius
       ) {
         bullet.hit.add(BOSS_HIT_ID);
+        this.boss.threatActive = false;
+        this.boss.threatPeak = 0;
         this.damageBoss(bullet.damage * this.player.bossDamage);
         this.spawnParticles(
           bullet.x,
