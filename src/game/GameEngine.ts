@@ -48,6 +48,7 @@ type EnemyShot = {
   damage: number;
   life: number;
   color: string;
+  bossOwned: boolean;
 };
 
 type DamageField = {
@@ -1024,6 +1025,7 @@ export class GameEngine {
             damage: 9 + this.wave * 0.7,
             life: 4.8,
             color: '#b678ff',
+            bossOwned: true,
           });
         }
         this.lightningFx.push({
@@ -1061,6 +1063,7 @@ export class GameEngine {
             damage: 8 + this.wave * 0.62,
             life: 3.4,
             color: '#ffcf57',
+            bossOwned: true,
           });
         }
       }
@@ -1419,6 +1422,7 @@ export class GameEngine {
       damage,
       life: 4.2,
       color,
+      bossOwned: false,
     });
   }
 
@@ -1433,7 +1437,8 @@ export class GameEngine {
         Math.hypot(shot.x - this.player.x, shot.y - this.player.y) <=
         shot.radius + this.player.radius
       ) {
-        this.damagePlayerFromBoss(shot.damage);
+        if (shot.bossOwned) this.damagePlayerFromBoss(shot.damage);
+        else this.damagePlayer(shot.damage);
         this.spawnParticles(shot.x, shot.y, shot.color, 10, 95);
         this.screenShake = Math.max(this.screenShake, 4);
         shot.life = 0;
@@ -1664,6 +1669,23 @@ export class GameEngine {
   private killFly(fly: FlyAgent) {
     if (fly.hp > 0 || fly.hp <= -1000) return;
     this.kills += 1;
+    const deathColor =
+      fly.kind === 'DARTER'
+        ? '#5beaff'
+        : fly.kind === 'BRUTE'
+          ? '#ff704e'
+          : fly.kind === 'SPITTER'
+            ? '#ff86d7'
+            : fly.kind === 'BOMBER'
+              ? '#ffcf57'
+              : '#c7ff45';
+    this.spawnParticles(
+      fly.x,
+      fly.y,
+      deathColor,
+      fly.kind === 'BRUTE' ? 16 : 9,
+      fly.kind === 'BOMBER' ? 155 : 95,
+    );
     fly.hp = -9999;
     if (this.player.killHeal > 0) {
       this.player.hp = Math.min(
@@ -1684,6 +1706,17 @@ export class GameEngine {
   private killBoss() {
     if (!this.boss) return;
     const { x, y } = this.boss;
+    this.spawnParticles(x, y, '#ffffff', 54, 230);
+    this.lightningFx.push({
+      x1: x - 180,
+      y1: y - 420,
+      x2: x,
+      y2: y,
+      life: 0.42,
+      maxLife: 0.42,
+      color: '#c7ff45',
+    });
+    this.screenShake = Math.max(this.screenShake, 15);
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
     if (this.player.killHeal > 0) {
@@ -1846,7 +1879,12 @@ export class GameEngine {
 
     const actual = remaining * (1 - this.player.armor);
     this.player.hp -= actual;
-    if (actual > 0) this.player.shieldCooldown = 4;
+    if (actual > 0) {
+      this.player.shieldCooldown = 4;
+      this.damageFlash = Math.max(this.damageFlash, 0.16);
+      this.screenShake = Math.max(this.screenShake, Math.min(8, 2 + actual * 0.16));
+      this.spawnParticles(this.player.x, this.player.y, '#ff5b63', 5, 75);
+    }
     return actual;
   }
 
@@ -1871,6 +1909,7 @@ export class GameEngine {
       if (fly && fly.hp > 0) {
         selected = {
           id: fly.id,
+          kind: fly.kind,
           decision: fly.decision,
           genome: copyGenome(fly.genome),
           hp: fly.hp,
@@ -1897,6 +1936,8 @@ export class GameEngine {
       boss: this.boss
         ? {
             active: true,
+            kind: this.boss.kind,
+            name: this.boss.name,
             hp: this.boss.hp,
             maxHp: this.boss.maxHp,
             brain: connectome,
