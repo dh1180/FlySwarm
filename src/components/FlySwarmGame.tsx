@@ -139,6 +139,16 @@ export default function FlySwarmGame() {
     });
   };
 
+  const cancelFusion = () => {
+    engineRef.current?.cancelFusionOffer();
+    setUpgrades([]);
+    setRewardContext({
+      source: 'LEVEL_UP',
+      title: 'LEVEL UP',
+      subtitle: 'CHOOSE A MUTATION',
+    });
+  };
+
   const toggleFullscreen = async () => {
     try {
       if (document.fullscreenElement) {
@@ -186,26 +196,7 @@ export default function FlySwarmGame() {
     engineRef.current?.setTouchMove(0, 0);
   };
 
-  const castMobileThunder = () => {
-    engineRef.current?.castLightningAtAim();
-  };
 
-  const lightningReady =
-    hud.abilities.lightningLevel > 0 &&
-    hud.abilities.lightningCooldown <= 0;
-  const lightningProgress =
-    hud.abilities.lightningLevel <= 0 ||
-    hud.abilities.lightningMaxCooldown <= 0
-      ? 0
-      : Math.max(
-          0,
-          Math.min(
-            1,
-            1 -
-              hud.abilities.lightningCooldown /
-                hud.abilities.lightningMaxCooldown,
-          ),
-        );
 
   const brainLabel =
     hud.connectome.status === 'ready'
@@ -280,8 +271,7 @@ export default function FlySwarmGame() {
           <div className="combat-controls">
             <span>MOVE <b>WASD</b></span>
             <span>AIM <b>MOUSE</b></span>
-            <span>LANCE <b>AUTO</b></span>
-            <span>THUNDER <b>E / RMB</b></span>
+            <span>AXONAL SPIKE <b>AUTO</b></span>
           </div>
         )}
 
@@ -311,27 +301,6 @@ export default function FlySwarmGame() {
               <div className="xp-pickup-readout">
                 XP PICKUP <b>{Math.round(hud.abilities.xpPickupRadius)}</b>
               </div>
-              <button
-                className={`thunder-button ${lightningReady ? 'ready' : ''}`}
-                onClick={castMobileThunder}
-                disabled={!lightningReady}
-              >
-                <SkillIcon skill="targetLightning" size={26} className="thunder-skill-icon" />
-                <span className="thunder-copy">
-                  <b>THUNDER</b>
-                  <small>
-                    {hud.abilities.lightningLevel <= 0
-                      ? 'LOCKED'
-                      : lightningReady
-                        ? 'READY'
-                        : `${hud.abilities.lightningCooldown.toFixed(1)}s`}
-                  </small>
-                </span>
-                <i
-                  className="thunder-cooldown-fill"
-                  style={{ transform: `scaleX(${lightningProgress})` }}
-                />
-              </button>
             </div>
           </>
         )}
@@ -343,7 +312,8 @@ export default function FlySwarmGame() {
             <h2>SURVIVE<br/>THE SWARM.</h2>
             <p className="overlay-copy">
               WASD / 방향키로 이동하세요. 기본 공격은 자동입니다.<br/>
-              Motor Lance는 획득 후 자동으로 가장 가까운 적을 주기적으로 공격합니다. Cortical Thunder는 마우스/터치로 위치를 지정한 뒤 E·우클릭·모바일 THUNDER 버튼으로 사용합니다.<br/>
+              Axonal Spike는 획득 후 가장 가까운 적을 자동으로 공격하고, Glial Matrix는 마우스/터치 방향을 참고해 생성됩니다.<br/>
+              공격 스킬 두 개가 MAX가 되는 순간 가능한 Synaptic Fusion을 바로 제안하며, 원하지 않으면 나중으로 미룰 수 있습니다.<br/>
               일반몹은 5개 전투 아키타입의 Utility AI, 보스 3종은 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
               보스는 120,000-step 사전학습 정책에서 시작하고, 실제 플레이에서는 도파민형 보상으로 계속 미세조정됩니다.<br/>
               플레이어에게 피해를 주면 보상, 피격되면 패널티를 받으며 학습값은 다음 보스전에도 이어집니다.
@@ -387,6 +357,15 @@ export default function FlySwarmGame() {
                 </button>
               ))}
             </div>
+            {rewardContext.source === 'FUSION_OFFER' && (
+              <button
+                type="button"
+                className="fusion-cancel"
+                onClick={cancelFusion}
+              >
+                NOT NOW · KEEP BOTH MAX SKILLS
+              </button>
+            )}
           </div>
         )}
 
