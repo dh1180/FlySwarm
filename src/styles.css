@@ -631,3 +631,182 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
     display: none;
   }
 }
+
+
+/* Build 005: mobile controls, Thunder cooldown and XP pickup QoL */
+.ability-dock {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 26;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+.xp-pickup-readout {
+  border: 1px solid rgba(199, 255, 69, .32);
+  background: rgba(7, 11, 15, .76);
+  color: #8fa06f;
+  padding: 5px 8px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  backdrop-filter: blur(8px);
+}
+.xp-pickup-readout b {
+  color: var(--acid);
+  margin-left: 3px;
+}
+.thunder-button {
+  position: relative;
+  overflow: hidden;
+  width: 152px;
+  min-height: 52px;
+  border: 1px solid rgba(217, 247, 255, .34);
+  background: rgba(7, 11, 15, .9);
+  color: #71808e;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 7px 11px;
+  text-align: left;
+  cursor: default;
+  backdrop-filter: blur(10px);
+}
+.thunder-button.ready {
+  border-color: rgba(217, 247, 255, .95);
+  color: #effcff;
+  box-shadow: 0 0 18px rgba(91, 234, 255, .18);
+  cursor: pointer;
+}
+.thunder-button:disabled {
+  opacity: .82;
+}
+.thunder-icon {
+  position: relative;
+  z-index: 2;
+  font-size: 24px;
+  line-height: 1;
+}
+.thunder-copy {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.thunder-copy b {
+  font-size: 10px;
+  letter-spacing: .1em;
+}
+.thunder-copy small {
+  font-size: 9px;
+  color: #8fa0ad;
+  font-weight: 800;
+}
+.thunder-button.ready .thunder-copy small {
+  color: var(--cyan);
+}
+.thunder-cooldown-fill {
+  position: absolute;
+  inset: auto 0 0;
+  height: 4px;
+  background: var(--cyan);
+  transform-origin: left center;
+  transition: transform .08s linear;
+}
+
+.mobile-joystick {
+  display: none;
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  z-index: 27;
+  width: 108px;
+  height: 108px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, .22);
+  background: rgba(8, 13, 18, .48);
+  box-shadow: inset 0 0 28px rgba(0, 0, 0, .35);
+  touch-action: none;
+  user-select: none;
+}
+.mobile-joystick::before {
+  content: '';
+  position: absolute;
+  inset: 23px;
+  border-radius: 50%;
+  border: 1px dashed rgba(91, 234, 255, .22);
+}
+.mobile-joystick-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 42px;
+  height: 42px;
+  margin-left: -21px;
+  margin-top: -21px;
+  border-radius: 50%;
+  border: 1px solid rgba(91, 234, 255, .8);
+  background: rgba(91, 234, 255, .18);
+  box-shadow: 0 0 18px rgba(91, 234, 255, .16);
+  pointer-events: none;
+}
+
+@media (pointer: coarse), (max-width: 760px) {
+  .mobile-joystick {
+    display: block;
+  }
+  .combat-controls {
+    display: none;
+  }
+  .ability-dock {
+    right: 16px;
+    bottom: 18px;
+  }
+  .thunder-button {
+    width: 132px;
+    min-height: 58px;
+  }
+  .xp-pickup-readout {
+    display: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .mobile-joystick {
+    left: 14px;
+    bottom: 14px;
+    width: 96px;
+    height: 96px;
+  }
+  .mobile-joystick-knob {
+    width: 38px;
+    height: 38px;
+    margin-left: -19px;
+    margin-top: -19px;
+  }
+  .ability-dock {
+    right: 12px;
+    bottom: 14px;
+  }
+  .thunder-button {
+    width: 118px;
+    min-height: 54px;
+    padding: 6px 9px;
+  }
+  .thunder-icon {
+    font-size: 21px;
+  }
+  .thunder-copy b {
+    font-size: 9px;
+  }
+}
+
+.game-shell:fullscreen .mobile-joystick {
+  bottom: 18px;
+}
+.game-shell:fullscreen .ability-dock {
+  bottom: 18px;
+}
