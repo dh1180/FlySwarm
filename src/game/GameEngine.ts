@@ -1965,16 +1965,50 @@ export class GameEngine {
     ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
     const camera = this.getCamera();
+    const shakeX =
+      this.screenShake > 0 ? randomRange(-this.screenShake, this.screenShake) : 0;
+    const shakeY =
+      this.screenShake > 0 ? randomRange(-this.screenShake, this.screenShake) : 0;
+
     ctx.save();
-    ctx.translate(-camera.x, -camera.y);
+    ctx.translate(shakeX - camera.x, shakeY - camera.y);
     this.drawGrid();
+    this.drawDamageFields();
     this.drawOrbs();
+    this.drawEnemyShots();
     this.drawBullets();
     this.drawFlies();
     this.drawBoss();
     this.drawPlayer();
     this.drawPlayerAbilities();
+    this.drawParticles();
+    this.drawLightningFx();
+    this.drawAim();
     ctx.restore();
+
+    if (this.damageFlash > 0) {
+      ctx.fillStyle = `rgba(255,60,70,${Math.min(0.22, this.damageFlash * 0.85)})`;
+      ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+    }
+
+    if (this.player.manualLanceLevel > 0 || this.player.lightningLevel > 0) {
+      ctx.save();
+      ctx.font = '800 11px Inter, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillStyle = 'rgba(7,10,14,.78)';
+      ctx.fillRect(14, VIEW_HEIGHT - 52, 360, 38);
+      ctx.fillStyle = '#dce6ef';
+      const lance =
+        this.player.manualLanceLevel > 0
+          ? `SPACE LANCE ${this.player.manualLanceCooldown <= 0 ? 'READY' : this.player.manualLanceCooldown.toFixed(1) + 's'}`
+          : '';
+      const thunder =
+        this.player.lightningLevel > 0
+          ? `E / RMB THUNDER ${this.player.lightningCooldown <= 0 ? 'READY' : this.player.lightningCooldown.toFixed(1) + 's'}`
+          : '';
+      ctx.fillText([lance, thunder].filter(Boolean).join('   ·   '), 26, VIEW_HEIGHT - 28);
+      ctx.restore();
+    }
 
     if (this.evolutionBanner > 0) {
       ctx.save();
@@ -2088,34 +2122,62 @@ export class GameEngine {
       ctx.translate(fly.x, fly.y);
       ctx.rotate(Math.atan2(fly.vy, fly.vx));
 
+      const scale = fly.radius / 8.5;
+      const bodyColor =
+        fly.kind === 'DARTER'
+          ? '#5beaff'
+          : fly.kind === 'BRUTE'
+            ? '#ff704e'
+            : fly.kind === 'SPITTER'
+              ? '#ff86d7'
+              : fly.kind === 'BOMBER'
+                ? '#ffcf57'
+                : fly.decision === 'FLEE'
+                  ? '#ffd86b'
+                  : fly.decision === 'SWARM'
+                    ? '#c7ff45'
+                    : '#ff5b63';
+
       if (this.selectedId === fly.id) {
-        ctx.strokeStyle = '#5beaff';
+        ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ctx.arc(0, 0, 16, 0, TAU);
+        ctx.arc(0, 0, fly.radius + 8, 0, TAU);
         ctx.stroke();
       }
 
-      ctx.fillStyle = 'rgba(230,245,255,.26)';
+      if (fly.kind === 'BOMBER') {
+        ctx.strokeStyle = `rgba(255,207,87,${0.45 + Math.sin(this.time * 10 + fly.phase) * 0.25})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, fly.radius + 5, 0, TAU);
+        ctx.stroke();
+      }
+
+      ctx.fillStyle = 'rgba(230,245,255,.3)';
       ctx.beginPath();
-      ctx.ellipse(-2, -7, 7, 3.2, -0.55, 0, TAU);
-      ctx.ellipse(-2, 7, 7, 3.2, 0.55, 0, TAU);
+      ctx.ellipse(-2 * scale, -7 * scale, 7 * scale, 3.2 * scale, -0.55, 0, TAU);
+      ctx.ellipse(-2 * scale, 7 * scale, 7 * scale, 3.2 * scale, 0.55, 0, TAU);
       ctx.fill();
 
-      ctx.fillStyle =
-        fly.decision === 'FLEE'
-          ? '#ffcf57'
-          : fly.decision === 'SWARM'
-            ? '#c7ff45'
-            : '#ff5b63';
+      ctx.shadowColor = bodyColor;
+      ctx.shadowBlur = fly.kind === 'DARTER' || fly.kind === 'BOMBER' ? 10 : 5;
+      ctx.fillStyle = bodyColor;
       ctx.beginPath();
-      ctx.ellipse(0, 0, 10, 5.5, 0, 0, TAU);
+      ctx.ellipse(0, 0, 10 * scale, 5.5 * scale, 0, 0, TAU);
       ctx.fill();
 
+      if (fly.kind === 'BRUTE') {
+        ctx.strokeStyle = 'rgba(255,255,255,.45)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+
+      ctx.shadowBlur = 0;
       ctx.fillStyle = '#171717';
       ctx.beginPath();
-      ctx.arc(6.2, -2.2, 1.7, 0, TAU);
-      ctx.arc(6.2, 2.2, 1.7, 0, TAU);
+      ctx.arc(6.2 * scale, -2.2 * scale, 1.7 * scale, 0, TAU);
+      ctx.arc(6.2 * scale, 2.2 * scale, 1.7 * scale, 0, TAU);
       ctx.fill();
       ctx.restore();
     }
@@ -2126,56 +2188,88 @@ export class GameEngine {
     const ctx = this.ctx;
     const brain = this.brain.getSnapshot();
     const output = brain.output;
+    const scale = this.boss.radius / 34;
+    const color =
+      this.boss.kind === 'NEURAL_HUNTER'
+        ? '#ffcf57'
+        : this.boss.kind === 'STORM_BRAIN'
+          ? '#b678ff'
+          : '#c7ff45';
 
     ctx.save();
     ctx.translate(this.boss.x, this.boss.y);
     ctx.rotate(this.boss.heading);
 
-    ctx.strokeStyle = `rgba(199,255,69,${0.25 + output.activity * 0.75})`;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 20 + output.activity * 18;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = 0.3 + output.activity * 0.7;
     ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.arc(0, 0, this.boss.radius + 13 + output.activity * 9, 0, TAU);
     ctx.stroke();
+    ctx.globalAlpha = 1;
 
-    ctx.fillStyle = 'rgba(190,230,255,.36)';
+    ctx.fillStyle = 'rgba(190,230,255,.38)';
     ctx.beginPath();
-    ctx.ellipse(-6, -28, 31, 12, -0.45, 0, TAU);
-    ctx.ellipse(-6, 28, 31, 12, 0.45, 0, TAU);
+    ctx.ellipse(-6 * scale, -28 * scale, 31 * scale, 12 * scale, -0.45, 0, TAU);
+    ctx.ellipse(-6 * scale, 28 * scale, 31 * scale, 12 * scale, 0.45, 0, TAU);
     ctx.fill();
 
-    ctx.fillStyle = '#c7ff45';
+    ctx.fillStyle = color;
     ctx.beginPath();
-    ctx.ellipse(0, 0, 43, 24, 0, 0, TAU);
+    ctx.ellipse(0, 0, 43 * scale, 24 * scale, 0, 0, TAU);
     ctx.fill();
 
+    if (this.boss.kind === 'SWARM_QUEEN') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.5;
+      for (let i = 0; i < 4; i += 1) {
+        ctx.beginPath();
+        ctx.moveTo(-22 * scale, (i - 1.5) * 8 * scale);
+        ctx.lineTo(-42 * scale, (i - 1.5) * 13 * scale);
+        ctx.stroke();
+      }
+    }
+
+    ctx.shadowBlur = 0;
     ctx.fillStyle = '#0a0e12';
     ctx.beginPath();
-    ctx.arc(27, -9, 7, 0, TAU);
-    ctx.arc(27, 9, 7, 0, TAU);
+    ctx.arc(27 * scale, -9 * scale, 7 * scale, 0, TAU);
+    ctx.arc(27 * scale, 9 * scale, 7 * scale, 0, TAU);
     ctx.fill();
-
     ctx.restore();
 
-    const hpWidth = 240;
-    ctx.fillStyle = 'rgba(0,0,0,.7)';
-    ctx.fillRect(this.boss.x - hpWidth / 2, this.boss.y - 68, hpWidth, 9);
-    ctx.fillStyle = '#c7ff45';
+    const hpWidth = 250;
+    ctx.fillStyle = 'rgba(0,0,0,.72)';
+    ctx.fillRect(this.boss.x - hpWidth / 2, this.boss.y - this.boss.radius - 38, hpWidth, 10);
+    ctx.fillStyle = color;
     ctx.fillRect(
       this.boss.x - hpWidth / 2,
-      this.boss.y - 68,
+      this.boss.y - this.boss.radius - 38,
       hpWidth * clamp(this.boss.hp / this.boss.maxHp, 0, 1),
-      9,
+      10,
     );
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 11px Inter, sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('FULL CONNECTOME BOSS', this.boss.x, this.boss.y - 77);
+    ctx.fillText(
+      `${this.boss.name} · FULL CONNECTOME`,
+      this.boss.x,
+      this.boss.y - this.boss.radius - 48,
+    );
 
     if (this.bossPulseFlash > 0) {
-      ctx.strokeStyle = `rgba(255,91,99,${this.bossPulseFlash * 2})`;
-      ctx.lineWidth = 7;
+      const pulseRadius = this.boss.kind === 'STORM_BRAIN' ? 250 : 205;
+      ctx.strokeStyle = `rgba(255,91,99,${this.bossPulseFlash * 1.8})`;
+      ctx.lineWidth = 8;
       ctx.beginPath();
-      ctx.arc(this.boss.x, this.boss.y, 205, 0, TAU);
+      ctx.arc(this.boss.x, this.boss.y, pulseRadius, 0, TAU);
+      ctx.stroke();
+      ctx.strokeStyle = `rgba(255,255,255,${this.bossPulseFlash})`;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(this.boss.x, this.boss.y, pulseRadius * 0.82, 0, TAU);
       ctx.stroke();
     }
   }
@@ -2219,14 +2313,166 @@ export class GameEngine {
   private drawBullets() {
     const ctx = this.ctx;
     ctx.save();
-    ctx.shadowBlur = 10;
     for (const bullet of this.bullets) {
+      if (bullet.style === 'LANCE') {
+        ctx.save();
+        ctx.translate(bullet.x, bullet.y);
+        ctx.rotate(Math.atan2(bullet.vy, bullet.vx));
+        ctx.shadowColor = '#ffffff';
+        ctx.shadowBlur = 20;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = bullet.radius * 1.15;
+        ctx.beginPath();
+        ctx.moveTo(-34, 0);
+        ctx.lineTo(16, 0);
+        ctx.stroke();
+        ctx.strokeStyle = '#5beaff';
+        ctx.lineWidth = Math.max(2, bullet.radius * 0.42);
+        ctx.beginPath();
+        ctx.moveTo(-48, 0);
+        ctx.lineTo(20, 0);
+        ctx.stroke();
+        ctx.restore();
+        continue;
+      }
+
+      ctx.shadowBlur = 10;
       ctx.fillStyle = bullet.critical ? '#ffcf57' : '#5beaff';
       ctx.shadowColor = bullet.critical ? '#ffcf57' : '#5beaff';
       ctx.beginPath();
       ctx.arc(bullet.x, bullet.y, bullet.radius, 0, TAU);
       ctx.fill();
     }
+    ctx.restore();
+  }
+
+  private drawDamageFields() {
+    const ctx = this.ctx;
+    for (const field of this.damageFields) {
+      const alpha = clamp(field.life / field.maxLife, 0, 1);
+      const gradient = ctx.createRadialGradient(
+        field.x,
+        field.y,
+        10,
+        field.x,
+        field.y,
+        field.radius,
+      );
+      gradient.addColorStop(0, `rgba(160,255,80,${0.22 * alpha})`);
+      gradient.addColorStop(0.72, `rgba(120,220,60,${0.12 * alpha})`);
+      gradient.addColorStop(1, 'rgba(120,220,60,0)');
+      ctx.fillStyle = gradient;
+      ctx.beginPath();
+      ctx.arc(field.x, field.y, field.radius, 0, TAU);
+      ctx.fill();
+      ctx.strokeStyle = `rgba(199,255,69,${0.45 * alpha})`;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+  }
+
+  private drawEnemyShots() {
+    const ctx = this.ctx;
+    ctx.save();
+    for (const shot of this.enemyShots) {
+      ctx.shadowColor = shot.color;
+      ctx.shadowBlur = 16;
+      ctx.fillStyle = shot.color;
+      ctx.beginPath();
+      ctx.arc(shot.x, shot.y, shot.radius, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 0.32;
+      ctx.beginPath();
+      ctx.arc(shot.x, shot.y, shot.radius * 2.5, 0, TAU);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  private drawParticles() {
+    const ctx = this.ctx;
+    ctx.save();
+    for (const particle of this.particles) {
+      const alpha = clamp(particle.life / particle.maxLife, 0, 1);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = particle.color;
+      ctx.fillRect(
+        particle.x - particle.size / 2,
+        particle.y - particle.size / 2,
+        particle.size,
+        particle.size,
+      );
+    }
+    ctx.restore();
+  }
+
+  private drawLightningFx() {
+    const ctx = this.ctx;
+    ctx.save();
+    for (const fx of this.lightningFx) {
+      const alpha = clamp(fx.life / fx.maxLife, 0, 1);
+      const segments = 9;
+      ctx.strokeStyle = fx.color;
+      ctx.shadowColor = fx.color;
+      ctx.shadowBlur = 18;
+      ctx.globalAlpha = alpha;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(fx.x1, fx.y1);
+      for (let i = 1; i < segments; i += 1) {
+        const t = i / segments;
+        const x = fx.x1 + (fx.x2 - fx.x1) * t + randomRange(-12, 12);
+        const y = fx.y1 + (fx.y2 - fx.y1) * t + randomRange(-12, 12);
+        ctx.lineTo(x, y);
+      }
+      ctx.lineTo(fx.x2, fx.y2);
+      ctx.stroke();
+      ctx.lineWidth = 1.5;
+      ctx.strokeStyle = '#ffffff';
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawAim() {
+    if (
+      this.player.manualLanceLevel <= 0 &&
+      this.player.lightningLevel <= 0
+    ) {
+      return;
+    }
+
+    const ctx = this.ctx;
+    const aim = this.getAimDirection();
+    const x = clamp(this.aimX, 0, WORLD_WIDTH);
+    const y = clamp(this.aimY, 0, WORLD_HEIGHT);
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(91,234,255,.26)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([7, 8]);
+    ctx.beginPath();
+    ctx.moveTo(this.player.x, this.player.y);
+    ctx.lineTo(
+      this.player.x + aim.x * 150,
+      this.player.y + aim.y * 150,
+    );
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle =
+      this.player.lightningLevel > 0 ? '#d9f7ff' : '#5beaff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 12, 0, TAU);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 18, y);
+    ctx.lineTo(x + 18, y);
+    ctx.moveTo(x, y - 18);
+    ctx.lineTo(x, y + 18);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -2244,6 +2490,19 @@ export class GameEngine {
     ctx.restore();
   }
 
+  private pointerWorld(event: MouseEvent) {
+    const rect = this.canvas.getBoundingClientRect();
+    const camera = this.getCamera();
+    return {
+      x:
+        ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH +
+        camera.x,
+      y:
+        ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT +
+        camera.y,
+    };
+  }
+
   private onKeyDown = (event: KeyboardEvent) => {
     const block = [
       'ArrowUp',
@@ -2251,10 +2510,60 @@ export class GameEngine {
       'ArrowLeft',
       'ArrowRight',
       'Space',
+      'KeyE',
     ];
     if (block.includes(event.code)) event.preventDefault();
+
+    if (!event.repeat && event.code === 'Space') {
+      this.castManualLance();
+    }
+    if (!event.repeat && event.code === 'KeyE') {
+      this.castTargetLightning();
+    }
+
     this.keys.add(event.code);
   };
+
+  private onKeyUp = (event: KeyboardEvent) => {
+    this.keys.delete(event.code);
+  };
+
+  private onCanvasMove = (event: MouseEvent) => {
+    const point = this.pointerWorld(event);
+    this.aimX = point.x;
+    this.aimY = point.y;
+  };
+
+  private onContextMenu = (event: MouseEvent) => {
+    event.preventDefault();
+    const point = this.pointerWorld(event);
+    this.aimX = point.x;
+    this.aimY = point.y;
+    this.castTargetLightning();
+  };
+
+  private onCanvasClick = (event: MouseEvent) => {
+    const point = this.pointerWorld(event);
+    const x = point.x;
+    const y = point.y;
+    this.aimX = x;
+    this.aimY = y;
+
+    let nearest: FlyAgent | null = null;
+    let best = 34;
+    for (const fly of this.flies) {
+      const d = Math.hypot(fly.x - x, fly.y - y);
+      if (d < best) {
+        best = d;
+        nearest = fly;
+      }
+    }
+
+    this.selectedId = nearest?.id ?? null;
+    this.emitHud();
+  };
+}
+};
 
   private onKeyUp = (event: KeyboardEvent) => {
     this.keys.delete(event.code);
