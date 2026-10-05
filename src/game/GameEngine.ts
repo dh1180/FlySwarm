@@ -1711,17 +1711,22 @@ export class GameEngine {
 
   private updateAbilities(dt: number) {
     if (this.player.auraDamage > 0 && this.player.auraRadius > 0) {
+      const toxinFusionCount = this.fusionCountFor('toxinAura');
+      const auraDamage =
+        this.player.auraDamage * (1 + toxinFusionCount * 0.18);
+      const auraRadius =
+        this.player.auraRadius * (1 + toxinFusionCount * 0.045);
       for (const fly of this.spatial.query(
         this.player.x,
         this.player.y,
-        this.player.auraRadius,
+        auraRadius,
       )) {
         if (fly.hp <= 0) continue;
         if (
           Math.hypot(fly.x - this.player.x, fly.y - this.player.y) <=
-          this.player.auraRadius
+          auraRadius
         ) {
-          fly.hp -= this.player.auraDamage * dt;
+          fly.hp -= auraDamage * dt;
           if (fly.hp <= 0) this.killFly(fly);
         }
       }
@@ -1731,10 +1736,10 @@ export class GameEngine {
         Math.hypot(
           this.boss.x - this.player.x,
           this.boss.y - this.player.y,
-        ) <= this.player.auraRadius + this.boss.radius
+        ) <= auraRadius + this.boss.radius
       ) {
         this.damageBoss(
-          this.player.auraDamage * 0.7 * dt * this.player.bossDamage,
+          auraDamage * 0.7 * dt * this.player.bossDamage,
         );
       }
     }
@@ -1751,9 +1756,10 @@ export class GameEngine {
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
           if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + 10) {
-            const orbitalMultiplier = this.evolvedSkills.has('ganglionResonance')
-              ? 1.75
-              : 1;
+            const orbitalMultiplier =
+              1 +
+              this.fusionCountFor('orbital') * 0.18 +
+              (this.evolvedSkills.has('ganglionResonance') ? 0.28 : 0);
             fly.hp -=
               this.player.orbitalDamage *
               6 *
@@ -1771,7 +1777,9 @@ export class GameEngine {
           this.damageBoss(
             this.player.orbitalDamage *
               4 *
-              (this.evolvedSkills.has('ganglionResonance') ? 1.75 : 1) *
+              (1 +
+                this.fusionCountFor('orbital') * 0.18 +
+                (this.evolvedSkills.has('ganglionResonance') ? 0.28 : 0)) *
               dt *
               this.player.bossDamage,
           );
@@ -1784,9 +1792,16 @@ export class GameEngine {
       if (this.player.novaTimer >= this.player.novaInterval) {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
-        const singularity = this.evolvedSkills.has('ganglionResonance');
-        const radius = singularity ? 320 : 220;
-        const damage = this.player.novaDamage * (singularity ? 1.65 : 1);
+        const resonance = this.evolvedSkills.has('ganglionResonance');
+        const novaFusionCount = this.fusionCountFor('nova');
+        const radius =
+          220 *
+          (1 + novaFusionCount * 0.075) *
+          (resonance ? 1.18 : 1);
+        const damage =
+          this.player.novaDamage *
+          (1 + novaFusionCount * 0.16) *
+          (resonance ? 1.22 : 1);
         this.damageCircle(
           this.player.x,
           this.player.y,
@@ -1794,7 +1809,7 @@ export class GameEngine {
           damage,
         );
 
-        if (singularity) {
+        if (resonance) {
           for (const fly of this.flies) {
             if (fly.hp <= 0) continue;
             const dx = this.player.x - fly.x;
@@ -1808,25 +1823,43 @@ export class GameEngine {
           }
         }
 
+        if (
+          this.evolvedSkills.has('ganglionWavefront') ||
+          this.evolvedSkills.has('depolarizationToxinBurst')
+        ) {
+          const toxic =
+            this.evolvedSkills.has('depolarizationToxinBurst');
+          this.damageFields.push({
+            x: this.player.x,
+            y: this.player.y,
+            radius: toxic ? 150 : 135,
+            life: toxic ? 3.4 : 2.8,
+            maxLife: toxic ? 3.4 : 2.8,
+            damage:
+              this.player.novaDamage * (toxic ? 0.24 : 0.18),
+            pulseTimer: 0,
+          });
+        }
+
         this.spawnParticles(
           this.player.x,
           this.player.y,
-          singularity ? '#ffffff' : '#5beaff',
-          singularity ? 48 : 28,
-          singularity ? 240 : 180,
+          resonance ? '#ffffff' : '#5beaff',
+          resonance ? 48 : 28,
+          resonance ? 240 : 180,
         );
         this.spawnRing(
           this.player.x,
           this.player.y,
           24,
           radius,
-          singularity ? '#ffffff' : '#5beaff',
+          resonance ? '#ffffff' : '#5beaff',
           0.55,
-          singularity ? 9 : 5,
+          resonance ? 9 : 5,
         );
         this.screenShake = Math.max(
           this.screenShake,
-          singularity ? 11 : 5,
+          resonance ? 11 : 5,
         );
       }
     }
@@ -1847,13 +1880,22 @@ export class GameEngine {
           55,
           WORLD_HEIGHT - 55,
         );
+        const fieldFusionCount = this.fusionCountFor('synapticField');
+        const baseRadius = 82 + this.player.fieldLevel * 10;
+        const baseLife = 4.5 + this.player.fieldLevel * 0.45;
         this.damageFields.push({
           x,
           y,
-          radius: 82 + this.player.fieldLevel * 10,
-          life: 4.5 + this.player.fieldLevel * 0.45,
-          maxLife: 4.5 + this.player.fieldLevel * 0.45,
-          damage: 14 + this.player.fieldLevel * 7,
+          radius:
+            baseRadius *
+            (1 + fieldFusionCount * 0.06) *
+            (this.evolvedSkills.has('neuroglialMatrix') ? 1.18 : 1),
+          life: baseLife * (1 + fieldFusionCount * 0.05),
+          maxLife: baseLife * (1 + fieldFusionCount * 0.05),
+          damage:
+            (14 + this.player.fieldLevel * 7) *
+            (1 + fieldFusionCount * 0.16) *
+            (this.evolvedSkills.has('neuroglialMatrix') ? 1.28 : 1),
           pulseTimer: 0,
         });
         this.spawnParticles(
@@ -1877,7 +1919,9 @@ export class GameEngine {
 
     if (this.player.meteorLevel > 0) {
       this.player.meteorTimer += dt;
-      const interval = Math.max(3.8, 7.3 - this.player.meteorLevel * 0.55);
+      const interval =
+        Math.max(3.8, 7.3 - this.player.meteorLevel * 0.55) *
+        Math.max(0.72, 1 - this.fusionCountFor('meteor') * 0.045);
       if (this.player.meteorTimer >= interval) {
         this.player.meteorTimer = 0;
         this.triggerMeteor();
