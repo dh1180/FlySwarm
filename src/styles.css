@@ -582,3 +582,52 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
   border-color: rgba(255, 207, 87, .55);
   background: rgba(255, 207, 87, .06);
 }
+
+
+/* Build 004: enemy archetypes, manual skills and combat VFX */
+.combat-controls {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  z-index: 24;
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  max-width: calc(100% - 260px);
+  pointer-events: none;
+}
+.combat-controls span {
+  border: 1px solid rgba(91, 234, 255, .28);
+  background: rgba(7, 11, 15, .74);
+  color: #8d9aa8;
+  padding: 6px 8px;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: .08em;
+  backdrop-filter: blur(8px);
+}
+.combat-controls b {
+  color: #e8f7ff;
+  margin-left: 4px;
+}
+.game-shell:fullscreen .combat-controls {
+  top: 12px;
+  left: 12px;
+}
+@media (max-width: 760px) {
+  .combat-controls {
+    left: 9px;
+    top: 9px;
+    max-width: calc(100% - 170px);
+  }
+  .combat-controls span {
+    padding: 5px 6px;
+    font-size: 7px;
+  }
+}
+@media (max-width: 520px) {
+  .combat-controls span:nth-child(1),
+  .combat-controls span:nth-child(2) {
+    display: none;
+  }
+}
