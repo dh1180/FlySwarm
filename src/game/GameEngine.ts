@@ -295,6 +295,7 @@ export class GameEngine {
     this.damageFields = [];
     this.particles = [];
     this.lightningFx = [];
+    this.ringFx = [];
     this.boss = null;
     this.time = 0;
     this.hudTimer = 0;
@@ -324,6 +325,13 @@ export class GameEngine {
     this.touchMoveY = 0;
     this.pausedForUpgrade = false;
     this.gameOver = false;
+    this.gameCleared = false;
+    this.defeatedBosses.clear();
+    for (const key of Object.keys(this.upgradeLevels) as UpgradeKey[]) {
+      delete this.upgradeLevels[key];
+    }
+    this.evolvedSkills.clear();
+    this.ownedSkillOrder = [];
     this.swarmGenome = {
       aggression: 0.56,
       fear: 0.35,
@@ -341,13 +349,61 @@ export class GameEngine {
     this.emitHud();
   }
 
-  applyUpgrade(key: UpgradeKey) {
+  applyUpgrade(key: SkillKey) {
+    if (this.isEvolutionKey(key)) {
+      const evolution = evolutionCatalog.find((item) => item.key === key);
+      if (
+        !evolution ||
+        this.evolvedSkills.has(key) ||
+        !this.canEvolve(evolution)
+      ) {
+        this.pausedForUpgrade = false;
+        return;
+      }
+
+      this.evolvedSkills.add(key);
+      this.ownedSkillOrder.push(key);
+      this.spawnRing(
+        this.player.x,
+        this.player.y,
+        20,
+        260,
+        '#ffffff',
+        0.7,
+        8,
+      );
+      this.spawnParticles(this.player.x, this.player.y, '#ffffff', 42, 220);
+      this.screenShake = Math.max(this.screenShake, 13);
+      this.pausedForUpgrade = false;
+      this.emitHud();
+      return;
+    }
+
+    const definition = upgradeCatalog.find((item) => item.key === key);
+    if (!definition) {
+      this.pausedForUpgrade = false;
+      return;
+    }
+
+    const currentLevel = this.getUpgradeLevel(key);
+    if (currentLevel >= definition.maxLevel) {
+      this.pausedForUpgrade = false;
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.upgradeLevels[key] = nextLevel;
+    if (currentLevel === 0) this.ownedSkillOrder.push(key);
+
     switch (key) {
       case 'damage':
         this.player.damage *= 1.25;
         break;
       case 'firerate':
-        this.player.fireInterval = Math.max(0.07, this.player.fireInterval * 0.82);
+        this.player.fireInterval = Math.max(
+          0.07,
+          this.player.fireInterval * 0.82,
+        );
         break;
       case 'multishot':
         this.player.bulletCount = Math.min(9, this.player.bulletCount + 1);
@@ -372,7 +428,10 @@ export class GameEngine {
         this.player.bulletSize += 1.2;
         break;
       case 'crit':
-        this.player.critChance = Math.min(0.52, this.player.critChance + 0.08);
+        this.player.critChance = Math.min(
+          0.52,
+          this.player.critChance + 0.08,
+        );
         break;
       case 'regen':
         this.player.regen += 0.65;
@@ -393,7 +452,10 @@ export class GameEngine {
           this.player.novaDamage = 58;
           this.player.novaTimer = 0;
         } else {
-          this.player.novaInterval = Math.max(2.6, this.player.novaInterval * 0.86);
+          this.player.novaInterval = Math.max(
+            2.6,
+            this.player.novaInterval * 0.86,
+          );
           this.player.novaDamage *= 1.22;
         }
         break;
@@ -419,8 +481,14 @@ export class GameEngine {
         }
         break;
       case 'chain':
-        this.player.chainChance = Math.min(0.72, this.player.chainChance + 0.18);
-        this.player.chainDamage = Math.min(0.8, Math.max(0.32, this.player.chainDamage + 0.08));
+        this.player.chainChance = Math.min(
+          0.72,
+          this.player.chainChance + 0.18,
+        );
+        this.player.chainDamage = Math.min(
+          0.8,
+          Math.max(0.32, this.player.chainDamage + 0.08),
+        );
         break;
       case 'shield':
         this.player.shieldMax += 22;
@@ -435,14 +503,23 @@ export class GameEngine {
         break;
       case 'overclock':
         this.player.damage *= 1.14;
-        this.player.fireInterval = Math.max(0.07, this.player.fireInterval * 0.9);
+        this.player.fireInterval = Math.max(
+          0.07,
+          this.player.fireInterval * 0.9,
+        );
         this.player.speed *= 1.06;
         break;
       case 'manualLance':
-        this.player.manualLanceLevel = Math.min(5, this.player.manualLanceLevel + 1);
+        this.player.manualLanceLevel = Math.min(
+          5,
+          this.player.manualLanceLevel + 1,
+        );
         break;
       case 'targetLightning':
-        this.player.lightningLevel = Math.min(5, this.player.lightningLevel + 1);
+        this.player.lightningLevel = Math.min(
+          5,
+          this.player.lightningLevel + 1,
+        );
         break;
       case 'synapticField':
         this.player.fieldLevel = Math.min(5, this.player.fieldLevel + 1);
@@ -453,13 +530,185 @@ export class GameEngine {
         this.player.meteorTimer = 0;
         break;
       case 'ricochet':
-        this.player.ricochetLevel = Math.min(5, this.player.ricochetLevel + 1);
+        this.player.ricochetLevel = Math.min(
+          5,
+          this.player.ricochetLevel + 1,
+        );
         break;
       case 'execute':
-        this.player.executeLevel = Math.min(5, this.player.executeLevel + 1);
+        this.player.executeLevel = Math.min(
+          5,
+          this.player.executeLevel + 1,
+        );
         break;
     }
+
     this.pausedForUpgrade = false;
+    this.emitHud();
+  }
+
+  private getUpgradeLevel(key: UpgradeKey) {
+    return this.upgradeLevels[key] ?? 0;
+  }
+
+  private isEvolutionKey(key: SkillKey): key is EvolutionKey {
+    return evolutionCatalog.some((item) => item.key === key);
+  }
+
+  private canEvolve(evolution: EvolutionDefinition) {
+    return evolution.requirements.every((key) => {
+      const definition = upgradeCatalog.find((item) => item.key === key);
+      return (
+        definition !== undefined &&
+        this.getUpgradeLevel(key) >= definition.maxLevel
+      );
+    });
+  }
+
+  private getUpgradeDetail(key: UpgradeKey, nextLevel: number) {
+    switch (key) {
+      case 'damage':
+        return `Lv ${nextLevel}: 기본 투사체 피해 ×1.25`;
+      case 'firerate':
+        return `Lv ${nextLevel}: 자동 공격 간격 ×0.82 (약 22% 빠름)`;
+      case 'multishot':
+        return `Lv ${nextLevel}: 동시 발사 투사체 +1`;
+      case 'speed':
+        return `Lv ${nextLevel}: 이동속도 ×1.12`;
+      case 'health':
+        return `Lv ${nextLevel}: 최대 HP +25 / 즉시 HP +38`;
+      case 'pierce':
+        return `Lv ${nextLevel}: 기본 투사체 관통 +1`;
+      case 'magnet':
+        return `Lv ${nextLevel}: XP 즉시 획득 반경 +35`;
+      case 'bulletSpeed':
+        return `Lv ${nextLevel}: 투사체 속도 ×1.20`;
+      case 'bulletSize':
+        return `Lv ${nextLevel}: 투사체 반경 +1.2`;
+      case 'crit':
+        return `Lv ${nextLevel}: 치명타 확률 +8%p`;
+      case 'regen':
+        return `Lv ${nextLevel}: 초당 체력 재생 +0.65`;
+      case 'armor':
+        return `Lv ${nextLevel}: 받는 피해 5%p 감소`;
+      case 'knockback':
+        return `Lv ${nextLevel}: 넉백 +22`;
+      case 'orbital':
+        return `Lv ${nextLevel}: 오비탈 +1 / 오비탈 피해 +1.5`;
+      case 'nova':
+        return nextLevel === 1
+          ? 'Lv 1: 7초마다 반경 220, 피해 58 Nova 해금'
+          : `Lv ${nextLevel}: Nova 주기 ×0.86 / 피해 ×1.22`;
+      case 'xpGain':
+        return `Lv ${nextLevel}: 경험치 획득 배율 +0.25`;
+      case 'bossDamage':
+        return `Lv ${nextLevel}: 보스 대상 피해 ×1.25`;
+      case 'critPower':
+        return `Lv ${nextLevel}: 치명타 피해 배율 +0.45`;
+      case 'leech':
+        return `Lv ${nextLevel}: 일반 적 처치 회복 +0.8 HP`;
+      case 'toxinAura':
+        return nextLevel === 1
+          ? 'Lv 1: 반경 105 / DPS 14 독성 오라 해금'
+          : `Lv ${nextLevel}: 오라 DPS ×1.24 / 반경 +12`;
+      case 'chain':
+        return `Lv ${nextLevel}: 연쇄 발동률 +18%p / 연쇄 피해 배율 +0.08`;
+      case 'shield':
+        return `Lv ${nextLevel}: 보호막 최대치 +22 / 재생 +2.4/s`;
+      case 'adrenaline':
+        return `Lv ${nextLevel}: HP 35% 이하 이속 +14%, 공속 +18% 추가`;
+      case 'bulletLife':
+        return `Lv ${nextLevel}: 투사체 수명 ×1.30`;
+      case 'overclock':
+        return `Lv ${nextLevel}: 피해 ×1.14 / 공격간격 ×0.90 / 이속 ×1.06`;
+      case 'manualLance': {
+        const cooldown = Math.max(0.38, 1.22 - nextLevel * 0.12);
+        const damage = 2.05 + nextLevel * 0.46;
+        const pierce = 5 + nextLevel * 2;
+        return `Lv ${nextLevel}: 자동 Lance 피해 ×${damage.toFixed(2)}, 관통 ${pierce}, 주기 ${cooldown.toFixed(2)}s`;
+      }
+      case 'targetLightning': {
+        const cooldown = Math.max(1.8, 5.7 - nextLevel * 0.62);
+        const radius = 88 + nextLevel * 13;
+        return `Lv ${nextLevel}: 낙뢰 기본피해 ${72 + nextLevel * 34}+공격력×0.9 / 반경 ${radius} / 쿨 ${cooldown.toFixed(2)}s`;
+      }
+      case 'synapticField':
+        return `Lv ${nextLevel}: 장판 DPS ${14 + nextLevel * 7} / 반경 ${82 + nextLevel * 10} / 지속 ${(4.5 + nextLevel * 0.45).toFixed(1)}s`;
+      case 'meteor':
+        return `Lv ${nextLevel}: Meteor 피해 ${66 + nextLevel * 30} / 반경 ${112 + nextLevel * 12} / 주기 ${Math.max(3.8, 7.3 - nextLevel * 0.55).toFixed(2)}s`;
+      case 'ricochet':
+        return `Lv ${nextLevel}: 튕김 확률 ${12 + nextLevel * 6}% / 피해 ${35 + nextLevel * 8}%`;
+      case 'execute':
+        return `Lv ${nextLevel}: HP ${(12 + nextLevel * 3.5).toFixed(1)}% 이하 적에게 추가 피해 ${42 + nextLevel * 12}%`;
+    }
+  }
+
+  private buildUpgradeOption(definition: UpgradeDefinition): UpgradeOption {
+    const level = this.getUpgradeLevel(definition.key);
+    const nextLevel = Math.min(definition.maxLevel, level + 1);
+    return {
+      key: definition.key,
+      title: definition.title,
+      description: definition.description,
+      detail: this.getUpgradeDetail(definition.key, nextLevel),
+      rarity: definition.rarity,
+      level,
+      nextLevel,
+      maxLevel: definition.maxLevel,
+    };
+  }
+
+  private buildEvolutionOption(
+    evolution: EvolutionDefinition,
+  ): UpgradeOption {
+    return {
+      key: evolution.key,
+      title: evolution.title,
+      description: evolution.description,
+      detail: evolution.detail,
+      rarity: 'EVOLUTION',
+      level: 0,
+      nextLevel: 1,
+      maxLevel: 1,
+      isEvolution: true,
+      requirements: evolution.requirements.map((key) => {
+        const definition = upgradeCatalog.find((item) => item.key === key);
+        return definition?.title ?? key;
+      }),
+    };
+  }
+
+  private getOwnedSkills(): OwnedSkill[] {
+    return this.ownedSkillOrder.flatMap((key) => {
+      if (this.isEvolutionKey(key)) {
+        const evolution = evolutionCatalog.find((item) => item.key === key);
+        if (!evolution || !this.evolvedSkills.has(key)) return [];
+        return [
+          {
+            key,
+            title: evolution.title,
+            level: 1,
+            maxLevel: 1,
+            rarity: 'EVOLUTION' as const,
+            evolved: true,
+          },
+        ];
+      }
+
+      const definition = upgradeCatalog.find((item) => item.key === key);
+      const level = this.getUpgradeLevel(key);
+      if (!definition || level <= 0) return [];
+      return [
+        {
+          key,
+          title: definition.title,
+          level,
+          maxLevel: definition.maxLevel,
+          rarity: definition.rarity,
+          evolved: false,
+        },
+      ];
+    });
   }
 
   setTouchMove(x: number, y: number) {
