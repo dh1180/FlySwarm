@@ -1888,52 +1888,46 @@ export class GameEngine {
       this.player.fieldTimer += dt;
       const interval = Math.max(2.8, 5.4 - this.player.fieldLevel * 0.45);
       if (this.player.fieldTimer >= interval) {
-        this.player.fieldTimer = 0;
-        const aim = this.getAimDirection();
-        const x = clamp(
-          this.player.x + aim.x * 135,
-          55,
-          WORLD_WIDTH - 55,
-        );
-        const y = clamp(
-          this.player.y + aim.y * 135,
-          55,
-          WORLD_HEIGHT - 55,
-        );
-        const fieldFusionCount = this.fusionCountFor('synapticField');
-        const baseRadius = 82 + this.player.fieldLevel * 10;
-        const baseLife = 4.5 + this.player.fieldLevel * 0.45;
-        this.damageFields.push({
-          x,
-          y,
-          radius:
-            baseRadius *
-            (1 + fieldFusionCount * 0.06) *
-            (this.evolvedSkills.has('neuroglialMatrix') ? 1.18 : 1),
-          life: baseLife * (1 + fieldFusionCount * 0.05),
-          maxLife: baseLife * (1 + fieldFusionCount * 0.05),
-          damage:
-            (14 + this.player.fieldLevel * 7) *
-            (1 + fieldFusionCount * 0.16) *
-            (this.evolvedSkills.has('neuroglialMatrix') ? 1.28 : 1),
-          pulseTimer: 0,
-        });
-        this.spawnParticles(
-          x,
-          y,
-          this.evolvedSkills.has('glialCalciumStorm') ? '#ffffff' : '#9cff47',
-          this.evolvedSkills.has('glialCalciumStorm') ? 28 : 18,
-          this.evolvedSkills.has('glialCalciumStorm') ? 145 : 90,
-        );
-        this.spawnRing(
-          x,
-          y,
-          12,
-          82 + this.player.fieldLevel * 10,
-          this.evolvedSkills.has('glialCalciumStorm') ? '#d9f7ff' : '#9cff47',
-          0.45,
-          4,
-        );
+        const target = this.findNearestEnemyPosition();
+        if (target) {
+          this.player.fieldTimer = 0;
+          const x = clamp(target.x, 55, WORLD_WIDTH - 55);
+          const y = clamp(target.y, 55, WORLD_HEIGHT - 55);
+          const fieldFusionCount = this.fusionCountFor('synapticField');
+          const baseRadius = 82 + this.player.fieldLevel * 10;
+          const baseLife = 4.5 + this.player.fieldLevel * 0.45;
+          this.damageFields.push({
+            x,
+            y,
+            radius:
+              baseRadius *
+              (1 + fieldFusionCount * 0.06) *
+              (this.evolvedSkills.has('neuroglialMatrix') ? 1.18 : 1),
+            life: baseLife * (1 + fieldFusionCount * 0.05),
+            maxLife: baseLife * (1 + fieldFusionCount * 0.05),
+            damage:
+              (14 + this.player.fieldLevel * 7) *
+              (1 + fieldFusionCount * 0.16) *
+              (this.evolvedSkills.has('neuroglialMatrix') ? 1.28 : 1),
+            pulseTimer: 0,
+          });
+          this.spawnParticles(
+            x,
+            y,
+            this.evolvedSkills.has('glialCalciumStorm') ? '#ffffff' : '#9cff47',
+            this.evolvedSkills.has('glialCalciumStorm') ? 28 : 18,
+            this.evolvedSkills.has('glialCalciumStorm') ? 145 : 90,
+          );
+          this.spawnRing(
+            x,
+            y,
+            12,
+            82 + this.player.fieldLevel * 10,
+            this.evolvedSkills.has('glialCalciumStorm') ? '#d9f7ff' : '#9cff47',
+            0.45,
+            4,
+          );
+        }
       }
     }
 
@@ -2181,6 +2175,34 @@ export class GameEngine {
     ) {
       this.damageBoss(damage * this.player.bossDamage);
     }
+  }
+
+  private findNearestEnemyPosition() {
+    let bestDistance = Infinity;
+    let target: { x: number; y: number } | null = null;
+
+    if (this.boss) {
+      const distance = Math.hypot(
+        this.boss.x - this.player.x,
+        this.boss.y - this.player.y,
+      );
+      bestDistance = distance;
+      target = { x: this.boss.x, y: this.boss.y };
+    }
+
+    for (const fly of this.flies) {
+      if (fly.hp <= 0) continue;
+      const distance = Math.hypot(
+        fly.x - this.player.x,
+        fly.y - this.player.y,
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        target = { x: fly.x, y: fly.y };
+      }
+    }
+
+    return target;
   }
 
   private getAimDirection() {
