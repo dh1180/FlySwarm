@@ -64,8 +64,14 @@ async function fetchGz(url: string) {
 }
 
 async function sha256(bytes: Uint8Array) {
-  const digest = await crypto.subtle.digest('SHA-256', bytes);
-  return Array.from(new Uint8Array(digest), (b) => b.toString(16).padStart(2, '0')).join('');
+  // Copy into a plain ArrayBuffer so TypeScript 7/WebCrypto does not infer
+  // SharedArrayBuffer-compatible ArrayBufferLike for the digest input.
+  const copy = new Uint8Array(bytes.byteLength);
+  copy.set(bytes);
+  const digest = await crypto.subtle.digest('SHA-256', copy.buffer);
+  return Array.from(new Uint8Array(digest), (b) =>
+    b.toString(16).padStart(2, '0'),
+  ).join('');
 }
 
 function varintReader(bytes: Uint8Array) {
