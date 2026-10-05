@@ -26,11 +26,16 @@ const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1350;
-const WAVE_SECONDS = 32;
+const WAVE_SECONDS = 30;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
-type BossKind = 'NEURAL_HUNTER' | 'STORM_BRAIN' | 'SWARM_QUEEN';
+type BossKind =
+  | 'NEURAL_HUNTER'
+  | 'STORM_BRAIN'
+  | 'SWARM_QUEEN'
+  | 'GLIAL_TITAN'
+  | 'CONNECTOME_APEX';
 
 type Boss = {
   kind: BossKind;
@@ -45,6 +50,10 @@ type Boss = {
   heading: number;
   pulseCooldown: number;
   specialCooldown: number;
+  stage: number;
+  damageScale: number;
+  speedScale: number;
+  cooldownScale: number;
 };
 
 type EnemyShot = {
@@ -176,7 +185,7 @@ const upgradeCatalog: UpgradeDefinition[] = [
   { key: 'bulletLife', title: 'Axon Extension', description: '축삭 연장으로 투사체 수명과 사거리 증가', rarity: 'COMMON', maxLevel: 4 },
   { key: 'overclock', title: 'Neuromodulator Overdrive', description: '신경조절물질 과활성으로 공격·공속·이속 복합 강화', rarity: 'NEURAL', maxLevel: 4 },
   { key: 'manualLance', title: 'Axonal Spike', description: '가장 가까운 적을 향해 자동 관통 스파이크 발사', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'synapticField', title: 'Glial Matrix', description: '전방에 지속 피해를 주는 글리아성 미세환경 형성', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'synapticField', title: 'Glial Matrix', description: '가장 가까운 적 중심에 지속 피해 글리아성 미세환경 형성', rarity: 'NEURAL', maxLevel: 5 },
   { key: 'meteor', title: 'Calcium Cascade', description: '표적 위치에 칼슘 신호 폭주를 일으켜 광역 피해', rarity: 'NEURAL', maxLevel: 5 },
   { key: 'ricochet', title: 'Recurrent Circuit', description: '재귀 회로처럼 추가 투사체가 주변 적으로 재전달', rarity: 'RARE', maxLevel: 5 },
   { key: 'execute', title: 'Apoptotic Threshold', description: '저체력 적의 세포사멸 임계점을 이용해 추가 피해', rarity: 'RARE', maxLevel: 5 },
@@ -1011,9 +1020,9 @@ export class GameEngine {
   }
 
   private spawnFlies() {
-    const bossTax = this.boss ? 0.72 : 1;
-    const cap = Math.floor(Math.min(310, 38 + this.wave * 19) * bossTax);
-    const interval = Math.max(0.095, 0.49 - this.wave * 0.023);
+    const bossTax = this.boss ? 0.8 : 1;
+    const cap = Math.floor(Math.min(390, 46 + this.wave * 23) * bossTax);
+    const interval = Math.max(0.072, 0.43 - this.wave * 0.024);
 
     while (this.spawnTimer >= interval && this.flies.length < cap) {
       this.spawnTimer -= interval;
@@ -1047,10 +1056,10 @@ export class GameEngine {
 
     const roll = Math.random();
     let kind: FlyAgent['kind'] = 'DRONE';
-    if (this.wave >= 5 && roll < 0.09) kind = 'BOMBER';
-    else if (this.wave >= 4 && roll < 0.2) kind = 'SPITTER';
-    else if (this.wave >= 3 && roll < 0.32) kind = 'BRUTE';
-    else if (this.wave >= 2 && roll < 0.5) kind = 'DARTER';
+    if (this.wave >= 4 && roll < 0.12) kind = 'BOMBER';
+    else if (this.wave >= 3 && roll < 0.25) kind = 'SPITTER';
+    else if (this.wave >= 2 && roll < 0.38) kind = 'BRUTE';
+    else if (this.wave >= 2 && roll < 0.58) kind = 'DARTER';
 
     const mutate = (value: number, amount = 0.18) =>
       clamp(value + randomRange(-amount, amount), 0.05, 1);
@@ -1077,7 +1086,7 @@ export class GameEngine {
       genome.fear = 0.05;
     }
 
-    const baseHp = 24 + this.wave * 2.9;
+    const baseHp = 27 + this.wave * 3.5;
     const hpMultiplier =
       kind === 'BRUTE'
         ? 3.25
@@ -1169,14 +1178,14 @@ export class GameEngine {
         }
 
         if (fly.attackCooldown <= 0 && playerDistance < 590) {
-          fly.attackCooldown = Math.max(0.8, 1.7 - this.wave * 0.035);
+          fly.attackCooldown = Math.max(0.68, 1.52 - this.wave * 0.038);
           this.fireEnemyShot(
             fly.x,
             fly.y,
             this.player.x,
             this.player.y,
-            215 + this.wave * 4,
-            6.5 + this.wave * 0.5,
+            235 + this.wave * 5,
+            8 + this.wave * 0.65,
             '#ff86d7',
           );
           this.spawnParticles(fly.x, fly.y, '#ff86d7', 6, 55);
@@ -1246,7 +1255,7 @@ export class GameEngine {
                 ? 1.24
                 : 1;
       const speed =
-        (84 + fly.genome.speed * 88 + this.wave * 3.6) *
+        (90 + fly.genome.speed * 92 + this.wave * 4.2) *
         (fly.decision === 'FLEE' ? 1.14 : 1) *
         kindSpeed;
       const steer = clamp(dt * (fly.kind === 'DARTER' ? 7.8 : 5.2), 0, 1);
@@ -1259,7 +1268,7 @@ export class GameEngine {
         fly.kind === 'BOMBER' &&
         playerDistance < this.player.radius + fly.radius + 13
       ) {
-        this.damagePlayer(18 + this.wave * 1.4);
+        this.damagePlayer(22 + this.wave * 1.7);
         this.screenShake = Math.max(this.screenShake, 10);
         this.damageFlash = Math.max(this.damageFlash, 0.22);
         this.spawnParticles(fly.x, fly.y, '#ff5b63', 24, 160);
@@ -1272,7 +1281,7 @@ export class GameEngine {
         const kindDamage =
           fly.kind === 'BRUTE' ? 2.15 : fly.kind === 'DARTER' ? 0.85 : 1;
         const contactDps =
-          (9 + this.wave * 1.2 + fly.genome.aggression * 4) * kindDamage;
+          (10.5 + this.wave * 1.45 + fly.genome.aggression * 4.5) * kindDamage;
         this.damagePlayer(contactDps * dt);
         fly.x -= towardPlayer.x * 42 * dt;
         fly.y -= towardPlayer.y * 42 * dt;
