@@ -3,6 +3,7 @@ import { WholeBrainController } from './connectome/WholeBrainController';
 import { DopaminePolicy } from './learning/DopaminePolicy';
 import type {
   Bullet,
+  ChestRarity,
   FlyAgent,
   EvolutionKey,
   GameClearSnapshot,
@@ -12,6 +13,7 @@ import type {
   Orb,
   OwnedSkill,
   Player,
+  RewardContext,
   SelectedFly,
   SkillKey,
   SkillRarity,
@@ -85,6 +87,16 @@ type LightningFx = {
   life: number;
   maxLife: number;
   color: string;
+};
+
+type RewardChest = {
+  id: number;
+  x: number;
+  y: number;
+  radius: number;
+  rarity: ChestRarity;
+  life: number;
+  phase: number;
 };
 
 type RingFx = {
@@ -188,7 +200,7 @@ const evolutionCatalog: EvolutionDefinition[] = [
 
 type Callbacks = {
   onHud: (hud: HudSnapshot) => void;
-  onLevelUp: (options: UpgradeOption[]) => void;
+  onLevelUp: (options: UpgradeOption[], context: RewardContext) => void;
   onGameOver: (result: GameOverSnapshot) => void;
   onGameClear: (result: GameClearSnapshot) => void;
 };
@@ -217,6 +229,7 @@ export class GameEngine {
   private wave = 1;
   private kills = 0;
   private flyId = 1;
+  private chestId = 1;
   private selectedId: number | null = null;
   private nextBossWave = 3;
   private bossBrainTimer = 0;
@@ -238,6 +251,7 @@ export class GameEngine {
   private flies: FlyAgent[] = [];
   private bullets: Bullet[] = [];
   private orbs: Orb[] = [];
+  private chests: RewardChest[] = [];
   private enemyShots: EnemyShot[] = [];
   private damageFields: DamageField[] = [];
   private particles: Particle[] = [];
@@ -292,6 +306,7 @@ export class GameEngine {
     this.flies = [];
     this.bullets = [];
     this.orbs = [];
+    this.chests = [];
     this.enemyShots = [];
     this.damageFields = [];
     this.particles = [];
@@ -308,6 +323,7 @@ export class GameEngine {
     this.wave = 1;
     this.kills = 0;
     this.flyId = 1;
+    this.chestId = 1;
     this.selectedId = null;
     this.nextBossWave = 3;
     this.bossBrainTimer = 0;
@@ -858,6 +874,7 @@ export class GameEngine {
     this.updateBullets(dt);
     this.updateAbilities(dt);
     this.updateDamageFields(dt);
+    this.updateChests(dt);
     this.updateOrbs(dt);
     this.updateVfx(dt);
 
@@ -868,6 +885,7 @@ export class GameEngine {
     this.particles = this.particles.filter((particle) => particle.life > 0);
     this.lightningFx = this.lightningFx.filter((fx) => fx.life > 0);
     this.ringFx = this.ringFx.filter((fx) => fx.life > 0);
+    this.chests = this.chests.filter((chest) => chest.life > 0);
 
     if (this.player.hp <= 0) {
       this.player.hp = 0;
@@ -2425,7 +2443,11 @@ export class GameEngine {
       const options = this.pickUpgradeOptions();
       if (options.length) {
         this.pausedForUpgrade = true;
-        this.callbacks.onLevelUp(options);
+        this.callbacks.onLevelUp(options, {
+          source: 'LEVEL_UP',
+          title: 'LEVEL UP',
+          subtitle: 'CHOOSE A MUTATION',
+        });
       } else {
         this.player.hp = Math.min(
           this.player.maxHp,
@@ -2668,6 +2690,7 @@ export class GameEngine {
     ctx.translate(shakeX - camera.x, shakeY - camera.y);
     this.drawGrid();
     this.drawDamageFields();
+    this.drawChests();
     this.drawOrbs();
     this.drawEnemyShots();
     this.drawBullets();
