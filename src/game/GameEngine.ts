@@ -13,8 +13,10 @@ import type {
   UpgradeOption,
 } from './types';
 
-const WIDTH = 1280;
-const HEIGHT = 720;
+const VIEW_WIDTH = 1280;
+const VIEW_HEIGHT = 720;
+const WORLD_WIDTH = 2400;
+const WORLD_HEIGHT = 1350;
 const WAVE_SECONDS = 28;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
@@ -117,8 +119,8 @@ export class GameEngine {
     if (!ctx) throw new Error('Canvas 2D context is not available.');
     this.ctx = ctx;
     this.callbacks = callbacks;
-    this.canvas.width = WIDTH;
-    this.canvas.height = HEIGHT;
+    this.canvas.width = VIEW_WIDTH;
+    this.canvas.height = VIEW_HEIGHT;
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     canvas.addEventListener('click', this.onCanvasClick);
@@ -250,9 +252,9 @@ export class GameEngine {
 
   private makePlayer(): Player {
     return {
-      x: WIDTH / 2,
-      y: HEIGHT / 2,
-      radius: 14,
+      x: WORLD_WIDTH / 2,
+      y: WORLD_HEIGHT / 2,
+      radius: 10,
       hp: 100,
       maxHp: 100,
       speed: 250,
@@ -368,8 +370,9 @@ export class GameEngine {
       );
     }
 
-    this.player.x = clamp(this.player.x, 22, WIDTH - 22);
-    this.player.y = clamp(this.player.y, 22, HEIGHT - 22);
+    const playerMargin = this.player.radius + 8;
+    this.player.x = clamp(this.player.x, playerMargin, WORLD_WIDTH - playerMargin);
+    this.player.y = clamp(this.player.y, playerMargin, WORLD_HEIGHT - playerMargin);
   }
 
   private spawnFlies() {
@@ -386,22 +389,26 @@ export class GameEngine {
   private createFly(): FlyAgent {
     const side = Math.floor(Math.random() * 4);
     const margin = 28;
+    const camera = this.getCamera();
     let x = 0;
     let y = 0;
 
     if (side === 0) {
-      x = randomRange(0, WIDTH);
-      y = -margin;
+      x = randomRange(camera.x, camera.x + VIEW_WIDTH);
+      y = camera.y - margin;
     } else if (side === 1) {
-      x = WIDTH + margin;
-      y = randomRange(0, HEIGHT);
+      x = camera.x + VIEW_WIDTH + margin;
+      y = randomRange(camera.y, camera.y + VIEW_HEIGHT);
     } else if (side === 2) {
-      x = randomRange(0, WIDTH);
-      y = HEIGHT + margin;
+      x = randomRange(camera.x, camera.x + VIEW_WIDTH);
+      y = camera.y + VIEW_HEIGHT + margin;
     } else {
-      x = -margin;
-      y = randomRange(0, HEIGHT);
+      x = camera.x - margin;
+      y = randomRange(camera.y, camera.y + VIEW_HEIGHT);
     }
+
+    x = clamp(x, -margin, WORLD_WIDTH + margin);
+    y = clamp(y, -margin, WORLD_HEIGHT + margin);
 
     const mutate = (value: number, amount = 0.18) =>
       clamp(value + randomRange(-amount, amount), 0.05, 1);
@@ -535,9 +542,10 @@ export class GameEngine {
 
   private spawnBoss() {
     const maxHp = 1050 + this.wave * 330;
+    const camera = this.getCamera();
     this.boss = {
-      x: WIDTH / 2,
-      y: 92,
+      x: clamp(camera.x + VIEW_WIDTH / 2, 80, WORLD_WIDTH - 80),
+      y: clamp(camera.y + 92, 80, WORLD_HEIGHT - 80),
       vx: 0,
       vy: 0,
       radius: 34,
@@ -559,7 +567,7 @@ export class GameEngine {
     this.bossBrainTimer += dt;
     boss.pulseCooldown = Math.max(0, boss.pulseCooldown - dt);
 
-    if (this.bossBrainTimer >= 0.13) {
+    if (this.bossBrainTimer >= 0.32) {
       this.bossBrainTimer = 0;
       const dx = this.player.x - boss.x;
       const dy = this.player.y - boss.y;
@@ -576,9 +584,17 @@ export class GameEngine {
       const bulletThreat = Number.isFinite(nearestBullet)
         ? clamp(1 - nearestBullet / 210, 0, 1)
         : 0;
-      const side = clamp(dx / Math.max(180, distance * 0.72), -1, 1);
-      const proximity = clamp(1 - distance / 900, 0, 1);
-      const threat = clamp(0.18 + proximity * 0.58 + bulletThreat * 0.72, 0, 1);
+      const towardPlayer = normalize(dx, dy);
+      const rightX = -Math.sin(boss.heading);
+      const rightY = Math.cos(boss.heading);
+      // fly-brain-bench convention: negative = left eye, positive = right eye.
+      const side = clamp(
+        towardPlayer.x * rightX + towardPlayer.y * rightY,
+        -1,
+        1,
+      );
+      const proximity = clamp(1 - distance / 1050, 0, 1);
+      const threat = clamp(0.08 + proximity * 0.62 + bulletThreat * 0.78, 0, 1);
       this.brain.step(side, threat);
     }
 
@@ -586,30 +602,24 @@ export class GameEngine {
     const dx = this.player.x - boss.x;
     const dy = this.player.y - boss.y;
     const distance = Math.hypot(dx, dy) || 1;
-    const toward = { x: dx / distance, y: dy / distance };
-    const away = { x: -toward.x, y: -toward.y };
 
-    boss.heading += out.turn * 3.8 * dt;
+    boss.heading += out.turn * 4.2 * dt;
     const forward = {
       x: Math.cos(boss.heading),
       y: Math.sin(boss.heading),
     };
 
+    // Descending-neuron readouts dominate locomotion; no hidden chase vector.
     let drive =
-      42 +
-      out.forward * 180 +
-      out.wing * 90 -
-      out.stop * 120 -
-      out.backward * 145;
-    drive = clamp(drive, -95, 245);
+      out.forward * 230 +
+      out.wing * 85 +
+      out.escape * 260 -
+      out.stop * 150 -
+      out.backward * 185;
+    drive = clamp(drive, -125, 310);
 
-    let desiredX = forward.x * drive;
-    let desiredY = forward.y * drive;
-
-    if (out.escape > 0.05) {
-      desiredX += away.x * out.escape * 300;
-      desiredY += away.y * out.escape * 300;
-    }
+    const desiredX = forward.x * drive;
+    const desiredY = forward.y * drive;
 
     const responsiveness = clamp(dt * 3.8, 0, 1);
     boss.vx += (desiredX - boss.vx) * responsiveness;
@@ -617,13 +627,13 @@ export class GameEngine {
     boss.x += boss.vx * dt;
     boss.y += boss.vy * dt;
 
-    if (boss.x < boss.radius || boss.x > WIDTH - boss.radius) {
-      boss.x = clamp(boss.x, boss.radius, WIDTH - boss.radius);
+    if (boss.x < boss.radius || boss.x > WORLD_WIDTH - boss.radius) {
+      boss.x = clamp(boss.x, boss.radius, WORLD_WIDTH - boss.radius);
       boss.heading = Math.PI - boss.heading;
       boss.vx *= -0.45;
     }
-    if (boss.y < boss.radius || boss.y > HEIGHT - boss.radius) {
-      boss.y = clamp(boss.y, boss.radius, HEIGHT - boss.radius);
+    if (boss.y < boss.radius || boss.y > WORLD_HEIGHT - boss.radius) {
+      boss.y = clamp(boss.y, boss.radius, WORLD_HEIGHT - boss.radius);
       boss.heading *= -1;
       boss.vy *= -0.45;
     }
@@ -1018,21 +1028,24 @@ export class GameEngine {
 
   private render() {
     const ctx = this.ctx;
-    ctx.clearRect(0, 0, WIDTH, HEIGHT);
+    ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
     const gradient = ctx.createRadialGradient(
-      WIDTH / 2,
-      HEIGHT / 2,
+      VIEW_WIDTH / 2,
+      VIEW_HEIGHT / 2,
       40,
-      WIDTH / 2,
-      HEIGHT / 2,
+      VIEW_WIDTH / 2,
+      VIEW_HEIGHT / 2,
       760,
     );
     gradient.addColorStop(0, '#101923');
     gradient.addColorStop(1, '#06080c');
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
 
+    const camera = this.getCamera();
+    ctx.save();
+    ctx.translate(-camera.x, -camera.y);
     this.drawGrid();
     this.drawOrbs();
     this.drawBullets();
@@ -1040,18 +1053,19 @@ export class GameEngine {
     this.drawBoss();
     this.drawPlayer();
     this.drawPlayerAbilities();
+    ctx.restore();
 
     if (this.evolutionBanner > 0) {
       ctx.save();
       ctx.textAlign = 'center';
       ctx.fillStyle = '#c7ff45';
       ctx.font = '900 34px Inter, sans-serif';
-      ctx.fillText('THE SWARM IS LEARNING', WIDTH / 2, 80);
+      ctx.fillText('THE SWARM IS LEARNING', VIEW_WIDTH / 2, 80);
       ctx.fillStyle = 'rgba(255,255,255,.72)';
       ctx.font = '700 14px Inter, sans-serif';
       ctx.fillText(
         `GENERATION ${this.wave} · survivor traits propagated`,
-        WIDTH / 2,
+        VIEW_WIDTH / 2,
         107,
       );
       ctx.restore();
@@ -1064,20 +1078,38 @@ export class GameEngine {
     ctx.strokeStyle = 'rgba(255,255,255,.035)';
     ctx.lineWidth = 1;
 
-    for (let x = 0; x <= WIDTH; x += 64) {
+    for (let x = 0; x <= WORLD_WIDTH; x += 64) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, HEIGHT);
+      ctx.lineTo(x, WORLD_HEIGHT);
       ctx.stroke();
     }
 
-    for (let y = 0; y <= HEIGHT; y += 64) {
+    for (let y = 0; y <= WORLD_HEIGHT; y += 64) {
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(WIDTH, y);
+      ctx.lineTo(WORLD_WIDTH, y);
       ctx.stroke();
     }
+    ctx.strokeStyle = 'rgba(199,255,69,.16)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
     ctx.restore();
+  }
+
+  private getCamera() {
+    return {
+      x: clamp(
+        this.player.x - VIEW_WIDTH / 2,
+        0,
+        Math.max(0, WORLD_WIDTH - VIEW_WIDTH),
+      ),
+      y: clamp(
+        this.player.y - VIEW_HEIGHT / 2,
+        0,
+        Math.max(0, WORLD_HEIGHT - VIEW_HEIGHT),
+      ),
+    };
   }
 
   private drawPlayer() {
@@ -1292,8 +1324,11 @@ export class GameEngine {
 
   private onCanvasClick = (event: MouseEvent) => {
     const rect = this.canvas.getBoundingClientRect();
-    const x = ((event.clientX - rect.left) / rect.width) * WIDTH;
-    const y = ((event.clientY - rect.top) / rect.height) * HEIGHT;
+    const camera = this.getCamera();
+    const x =
+      ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH + camera.x;
+    const y =
+      ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT + camera.y;
 
     let nearest: FlyAgent | null = null;
     let best = 34;
