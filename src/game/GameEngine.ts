@@ -2303,51 +2303,81 @@ export class GameEngine {
         this.player.hp + this.player.killHeal,
       );
     }
+    const xpValue =
+      fly.kind === 'BRUTE'
+        ? 3
+        : fly.kind === 'SPITTER' || fly.kind === 'BOMBER'
+          ? 2
+          : 1;
     this.orbs.push({
       x: fly.x,
       y: fly.y,
       vx: randomRange(-18, 18),
       vy: randomRange(-18, 18),
-      value: 1,
+      value: xpValue,
     });
     if (this.selectedId === fly.id) this.selectedId = null;
   }
 
   private killBoss() {
     if (!this.boss) return;
-    const { x, y } = this.boss;
-    this.spawnParticles(x, y, '#ffffff', 54, 230);
-    this.lightningFx.push({
-      x1: x - 180,
-      y1: y - 420,
-      x2: x,
-      y2: y,
-      life: 0.42,
-      maxLife: 0.42,
-      color: '#c7ff45',
-    });
-    this.screenShake = Math.max(this.screenShake, 15);
+    const { x, y, kind } = this.boss;
+    this.defeatedBosses.add(kind);
+
+    this.spawnParticles(x, y, '#ffffff', 72, 270);
+    for (let i = 0; i < 4; i += 1) {
+      this.lightningFx.push({
+        x1: x + randomRange(-220, 220),
+        y1: y - randomRange(300, 560),
+        x2: x + randomRange(-30, 30),
+        y2: y + randomRange(-30, 30),
+        life: 0.48,
+        maxLife: 0.48,
+        color: '#c7ff45',
+      });
+    }
+    this.spawnRing(x, y, 20, 310, '#ffffff', 0.72, 12);
+    this.spawnRing(x, y, 30, 220, '#c7ff45', 0.58, 7);
+    this.screenShake = Math.max(this.screenShake, 18);
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
+
     if (this.player.killHeal > 0) {
       this.player.hp = Math.min(
         this.player.maxHp,
         this.player.hp + this.player.killHeal * 12,
       );
     }
+
     this.kills += 50;
-    for (let i = 0; i < 26; i += 1) {
+    for (let i = 0; i < 32; i += 1) {
       this.orbs.push({
-        x: x + randomRange(-28, 28),
-        y: y + randomRange(-28, 28),
-        vx: randomRange(-100, 100),
-        vy: randomRange(-100, 100),
-        value: 3,
+        x: x + randomRange(-34, 34),
+        y: y + randomRange(-34, 34),
+        vx: randomRange(-110, 110),
+        vy: randomRange(-110, 110),
+        value: 4,
       });
     }
+
     this.boss = null;
-    this.nextBossWave = this.wave + 3;
     this.brain.reset();
+
+    if (this.defeatedBosses.size >= 3) {
+      this.gameCleared = true;
+      this.enemyShots = [];
+      this.callbacks.onGameClear({
+        kills: this.kills,
+        wave: this.wave,
+        seconds: this.time,
+        bossesDefeated: this.defeatedBosses.size,
+      });
+      this.emitHud();
+      return;
+    }
+
+    this.nextBossWave = this.wave + 3;
+    this.emitHud();
   }
 
   private updateOrbs(dt: number) {
@@ -2382,20 +2412,52 @@ export class GameEngine {
     if (this.player.xp >= this.player.xpNeed && !this.pausedForUpgrade) {
       this.player.xp -= this.player.xpNeed;
       this.player.level += 1;
-      this.player.xpNeed = Math.round(8 + this.player.level * 4.7);
-      this.pausedForUpgrade = true;
-      this.callbacks.onLevelUp(this.pickUpgradeOptions());
+      this.player.xpNeed = Math.round(
+        7 +
+          this.player.level * 3.8 +
+          Math.max(0, this.player.level - 12) * 0.8,
+      );
+      const options = this.pickUpgradeOptions();
+      if (options.length) {
+        this.pausedForUpgrade = true;
+        this.callbacks.onLevelUp(options);
+      } else {
+        this.player.hp = Math.min(
+          this.player.maxHp,
+          this.player.hp + 20,
+        );
+      }
       this.emitHud();
     }
   }
 
   private pickUpgradeOptions() {
-    const pool = [...upgradeCatalog];
     const result: UpgradeOption[] = [];
+
+    const evolutions = evolutionCatalog.filter(
+      (item) =>
+        !this.evolvedSkills.has(item.key) &&
+        this.canEvolve(item),
+    );
+
+    if (evolutions.length) {
+      const evolution =
+        evolutions[Math.floor(Math.random() * evolutions.length)];
+      result.push(this.buildEvolutionOption(evolution));
+    }
+
+    const pool = upgradeCatalog
+      .filter(
+        (item) =>
+          this.getUpgradeLevel(item.key) < item.maxLevel,
+      )
+      .map((item) => this.buildUpgradeOption(item));
+
     while (result.length < 3 && pool.length) {
       const index = Math.floor(Math.random() * pool.length);
       result.push(pool.splice(index, 1)[0]);
     }
+
     return result;
   }
 
@@ -2557,6 +2619,9 @@ export class GameEngine {
             : 0,
         xpPickupRadius: this.player.magnet,
       },
+      skills: this.getOwnedSkills(),
+      bossesDefeated: this.defeatedBosses.size,
+      bossesTotal: 3,
       boss: this.boss
         ? {
             active: true,
