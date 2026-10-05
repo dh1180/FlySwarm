@@ -12,6 +12,7 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - WASD / 방향키 이동
 - 가장 가까운 적 자동 공격
 - 경험치 Orb / 레벨업
+- XP Orb가 Magnet 반경 안에 들어오면 즉시 획득
 - 31종 레벨업 Mutation
 - 웨이브 증가 및 군집 진화
 - 초파리 개체별 personality genome
@@ -218,7 +219,7 @@ Main Game Thread
 - Adrenaline Loop — low-HP move / fire speed
 - Long Axon — longer projectile lifetime
 - Neural Overclock — damage / fire rate / move speed
-- Voluntary Motor Lance — **SPACE**, 마우스 방향 수동 관통탄
+- Motor Lance — 가장 가까운 적에게 주기적으로 자동 발사되는 강력한 관통탄
 - Cortical Thunder — **E / 우클릭**, 마우스 위치 지정 낙뢰
 - Synaptic Carpet — 조준 방향에 주기적 지속 피해 장판
 - Glial Meteor — 강한 적 위치에 주기적 광역 낙하 공격
@@ -227,9 +228,10 @@ Main Game Thread
 
 ## ✨ Combat VFX / Controls
 
-- Mouse world-space aiming
-- `SPACE`: Voluntary Motor Lance
+- Mouse / touch world-space aiming
+- Motor Lance: 획득 후 자동 주기 발사
 - `E` 또는 우클릭: Cortical Thunder
+- 모바일: 좌측 가상 조이스틱 이동 + 우측 THUNDER 버튼
 - 잡몹 종류별 색상 / 크기 / glow 차별화
 - 장판 radial VFX
 - lightning zig-zag trail
@@ -240,7 +242,11 @@ Main Game Thread
 - enemy projectile glow
 - 수동 스킬 cooldown HUD
 
-수동 스킬은 해당 Mutation을 획득한 뒤 활성화됩니다.
+Cortical Thunder는 해당 Mutation 획득 후 수동으로 사용하며,
+Motor Lance는 획득 즉시 자동 공격으로 동작합니다.
+
+경험치 Orb는 Player의 Magnet 반경 안에 들어오는 순간 즉시 획득됩니다.
+반경 바깥의 근처 Orb에는 보조 흡인이 적용됩니다.
 
 ## 🛠 Stack
 
