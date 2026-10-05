@@ -44,7 +44,7 @@ const initialHud: HudSnapshot = {
   },
   skills: [],
   bossesDefeated: 0,
-  bossesTotal: 3,
+  bossesTotal: 5,
   connectome: {
     status: 'idle',
     progress: 0,
@@ -286,7 +286,7 @@ export default function FlySwarmGame() {
         <div className="boss-strip">
           <div>
             <span>⚠ CONNECTOME ENTITY DETECTED</span>
-            <strong>{hud.boss.name}</strong>
+            <strong>STAGE {hud.boss.stage}/{hud.boss.totalStages} · {hud.boss.name}</strong>
           </div>
           <div className="boss-hp">
             <i
@@ -325,7 +325,7 @@ export default function FlySwarmGame() {
         {started && !gameOver && !gameClear && (
           <div className="combat-controls">
             <span>MOVE <b>WASD</b></span>
-            <span>AIM <b>MOUSE</b></span>
+            <span>INSPECT <b>CLICK</b></span>
             <span>AXONAL SPIKE <b>AUTO</b></span>
           </div>
         )}
@@ -367,7 +367,7 @@ export default function FlySwarmGame() {
             <h2>SURVIVE<br/>THE SWARM.</h2>
             <p className="overlay-copy">
               WASD / 방향키로 이동하세요. 기본 공격은 자동입니다. 시작과 함께 Neural Pulse soundtrack이 재생됩니다.<br/>
-              Axonal Spike는 획득 후 가장 가까운 적을 자동으로 공격하고, Glial Matrix는 마우스/터치 방향을 참고해 생성됩니다.<br/>
+              Axonal Spike는 가장 가까운 적을 자동 공격하고, Glial Matrix도 가장 가까운 적 중심에 자동 생성됩니다.<br/>
               공격 스킬 두 개가 MAX가 되는 순간 가능한 Synaptic Fusion을 바로 제안하며, 원하지 않으면 나중으로 미룰 수 있습니다.<br/>
               일반몹은 5개 전투 아키타입의 Utility AI, 보스 3종은 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
               보스는 120,000-step 사전학습 정책에서 시작하고, 실제 플레이에서는 도파민형 보상으로 계속 미세조정됩니다.<br/>
@@ -430,12 +430,12 @@ export default function FlySwarmGame() {
             <p>CONNECTOME SWARM CLEARED</p>
             <h2>HUMAN<br/>SURVIVED.</h2>
             <div className="death-stats">
-              <span><b>{gameClear.bossesDefeated}/3</b> bosses eliminated</span>
+              <span><b>{gameClear.bossesDefeated}/{gameClear.bossesTotal}</b> bosses eliminated</span>
               <span><b>{gameClear.kills}</b> total kills</span>
               <span><b>{Math.floor(gameClear.seconds)}s</b> clear time</span>
             </div>
             <strong className="clear-copy">
-              세 개의 Full-Connectome Boss를 모두 처치했습니다.
+              다섯 단계의 Full-Connectome Boss를 모두 처치했습니다.
             </strong>
             <button onClick={restart}>PLAY AGAIN</button>
           </div>
