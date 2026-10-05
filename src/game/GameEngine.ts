@@ -2527,14 +2527,6 @@ export class GameEngine {
     return target;
   }
 
-  private getAimDirection() {
-    const dx = this.aimX - this.player.x;
-    const dy = this.aimY - this.player.y;
-    if (Math.hypot(dx, dy) < 8) {
-      return normalize(this.lastMoveX, this.lastMoveY);
-    }
-    return normalize(dx, dy);
-  }
 
   private castAutoLance() {
     if (
@@ -2942,7 +2934,7 @@ export class GameEngine {
       return;
     }
 
-    this.nextBossWave = this.wave + 2;
+    this.nextBossWave = 3 + this.bossIndex * 2;
     this.emitHud();
   }
 
@@ -3414,7 +3406,6 @@ export class GameEngine {
     this.drawParticles();
     this.drawRingFx();
     this.drawLightningFx();
-    this.drawAim();
     ctx.restore();
 
     if (this.damageFlash > 0) {
@@ -3895,44 +3886,6 @@ export class GameEngine {
     ctx.restore();
   }
 
-  private drawAim() {
-    if (
-      this.player.fieldLevel <= 0
-    ) {
-      return;
-    }
-
-    const ctx = this.ctx;
-    const aim = this.getAimDirection();
-    const x = clamp(this.aimX, 0, WORLD_WIDTH);
-    const y = clamp(this.aimY, 0, WORLD_HEIGHT);
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(91,234,255,.26)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([7, 8]);
-    ctx.beginPath();
-    ctx.moveTo(this.player.x, this.player.y);
-    ctx.lineTo(
-      this.player.x + aim.x * 150,
-      this.player.y + aim.y * 150,
-    );
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.strokeStyle = '#9cff47';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, 12, 0, TAU);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x - 18, y);
-    ctx.lineTo(x + 18, y);
-    ctx.moveTo(x, y - 18);
-    ctx.lineTo(x, y + 18);
-    ctx.stroke();
-    ctx.restore();
-  }
 
   private drawChests() {
     const ctx = this.ctx;
