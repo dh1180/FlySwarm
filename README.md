@@ -12,7 +12,7 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - WASD / 방향키 이동
 - 가장 가까운 적 자동 공격
 - 경험치 Orb / 레벨업
-- 17종 레벨업 Mutation
+- 25종 레벨업 Mutation
 - 웨이브 증가 및 군집 진화
 - 초파리 개체별 personality genome
 - Spatial Hash 기반 근접 탐색
@@ -50,6 +50,8 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 대신 Connectome에서 나온 neural output을 실제 게임 행동으로 변환하는 정책에
 보상학습을 적용합니다.
 
+- 120,000-step surrogate curriculum으로 사전학습된 checkpoint에서 시작
+- deterministic seed 42 기준 surrogate reward: 0.2934 → 0.8518
 - 플레이어에게 피해를 주면 양의 reward
 - 보스가 피해를 입으면 음의 reward
 - 보스가 쓰러지면 큰 negative reward
@@ -61,6 +63,16 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 이 구조는 실제 초파리의 도파민 회로를 그대로 재현한 것이 아니라,
 Drosophila에서 dopamine이 reinforcement / associative learning에 관여한다는
 아이디어를 게임용 reward-modulated policy에 적용한 것입니다.
+
+사전학습 metric은 실제 Full Connectome boss 실전 승률이 아니라,
+Connectome motor readout의 형태를 흉내 낸 surrogate curriculum에서 계산한 값입니다.
+실제 게임에서는 Full Connectome neural output을 입력으로 계속 online fine-tuning합니다.
+
+사전학습 재현:
+
+```bash
+npm run train:boss
+```
 
 ## 🧬 Full-Connectome Boss
 
@@ -178,6 +190,14 @@ Main Game Thread
 - Action Potential Nova — periodic area damage
 - Memory Consolidation — XP gain
 - Connectome Breaker — boss damage
+- Spike Burst — critical damage multiplier
+- Hemolymph Leech — heal on kill
+- Neurotoxin Cloud — passive area damage
+- Chain Synapse — chain damage on hit
+- Refractory Shield — regenerating shield
+- Adrenaline Loop — low-HP move / fire speed
+- Long Axon — longer projectile lifetime
+- Neural Overclock — damage / fire rate / move speed
 
 ## 🛠 Stack
 

@@ -161,6 +161,7 @@ export default function FlySwarmGame() {
             </b>
             <b>GEN {hud.boss.dopamine.generation}</b>
             <b>LEARN {hud.boss.dopamine.updates}</b>
+            <b>PRETRAIN {(hud.boss.dopamine.pretrainedEpisodes / 1000).toFixed(0)}K</b>
           </div>
         </div>
       )}
@@ -184,8 +185,8 @@ export default function FlySwarmGame() {
             <p className="overlay-copy">
               WASD / 방향키로 이동하세요. 공격은 자동입니다.<br/>
               일반몹은 Utility AI, 보스는 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
-              보스가 플레이어에게 피해를 주면 도파민형 보상을 받고, 피격되면 패널티를 받아 행동 정책을 학습합니다.<br/>
-              학습값은 브라우저에 저장되어 다음 보스전에도 이어집니다.
+              보스는 120,000-step 사전학습 정책에서 시작하고, 실제 플레이에서는 도파민형 보상으로 계속 미세조정됩니다.<br/>
+              플레이어에게 피해를 주면 보상, 피격되면 패널티를 받으며 학습값은 다음 보스전에도 이어집니다.
             </p>
             <button onClick={start}>ENTER THE SWARM</button>
           </div>
