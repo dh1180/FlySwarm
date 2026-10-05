@@ -356,7 +356,7 @@ GAME CLEAR
 
 ## ✨ Combat VFX / Controls
 
-- Mouse / touch world-space aiming with fullscreen letterbox correction
+- Mouse Click 기반 Agent Inspector 선택
 - Axonal Spike: 획득 후 가장 가까운 적에게 자동 주기 발사
 - Glial Matrix: Boss와 일반몹을 함께 비교해 가장 가까운 적 중심에 자동 생성
 - 모바일: 좌측 가상 조이스틱 이동
