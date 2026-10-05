@@ -282,6 +282,7 @@ export class GameEngine {
     this.brain.load();
     this.running = true;
     this.gameOver = false;
+    this.gameCleared = false;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.loop);
   }
@@ -798,7 +799,7 @@ export class GameEngine {
     const dt = Math.min(0.033, (now - this.last) / 1000);
     this.last = now;
 
-    if (!this.pausedForUpgrade && !this.gameOver) {
+    if (!this.pausedForUpgrade && !this.gameOver && !this.gameCleared) {
       this.update(dt);
     }
     this.render();
@@ -865,6 +866,7 @@ export class GameEngine {
     this.damageFields = this.damageFields.filter((field) => field.life > 0);
     this.particles = this.particles.filter((particle) => particle.life > 0);
     this.lightningFx = this.lightningFx.filter((fx) => fx.life > 0);
+    this.ringFx = this.ringFx.filter((fx) => fx.life > 0);
 
     if (this.player.hp <= 0) {
       this.player.hp = 0;
@@ -932,8 +934,8 @@ export class GameEngine {
 
   private spawnFlies() {
     const bossTax = this.boss ? 0.72 : 1;
-    const cap = Math.floor(Math.min(360, 48 + this.wave * 24) * bossTax);
-    const interval = Math.max(0.075, 0.43 - this.wave * 0.024);
+    const cap = Math.floor(Math.min(310, 38 + this.wave * 19) * bossTax);
+    const interval = Math.max(0.095, 0.49 - this.wave * 0.023);
 
     while (this.spawnTimer >= interval && this.flies.length < cap) {
       this.spawnTimer -= interval;
@@ -997,7 +999,7 @@ export class GameEngine {
       genome.fear = 0.05;
     }
 
-    const baseHp = 26 + this.wave * 3.4;
+    const baseHp = 24 + this.wave * 2.9;
     const hpMultiplier =
       kind === 'BRUTE'
         ? 3.25
@@ -1096,7 +1098,7 @@ export class GameEngine {
             this.player.x,
             this.player.y,
             215 + this.wave * 4,
-            8 + this.wave * 0.65,
+            6.5 + this.wave * 0.5,
             '#ff86d7',
           );
           this.spawnParticles(fly.x, fly.y, '#ff86d7', 6, 55);
@@ -1179,7 +1181,7 @@ export class GameEngine {
         fly.kind === 'BOMBER' &&
         playerDistance < this.player.radius + fly.radius + 13
       ) {
-        this.damagePlayer(22 + this.wave * 1.8);
+        this.damagePlayer(18 + this.wave * 1.4);
         this.screenShake = Math.max(this.screenShake, 10);
         this.damageFlash = Math.max(this.damageFlash, 0.22);
         this.spawnParticles(fly.x, fly.y, '#ff5b63', 24, 160);
@@ -1212,7 +1214,7 @@ export class GameEngine {
           ? { name: 'STORM BRAIN', hp: 1.08, radius: 36, special: 3.1 }
           : { name: 'SWARM QUEEN', hp: 1.36, radius: 43, special: 4.6 };
 
-    const maxHp = (1050 + this.wave * 330) * config.hp;
+    const maxHp = (980 + this.wave * 285) * config.hp;
     const camera = this.getCamera();
     this.boss = {
       kind,
@@ -1339,7 +1341,7 @@ export class GameEngine {
     if (distance < boss.radius + this.player.radius + 8) {
       const contactScale =
         boss.kind === 'SWARM_QUEEN' ? 1.28 : boss.kind === 'NEURAL_HUNTER' ? 1.12 : 1;
-      this.damagePlayerFromBoss((25 + this.wave * 1.8) * contactScale * dt);
+      this.damagePlayerFromBoss((22 + this.wave * 1.5) * contactScale * dt);
     }
 
     if (
@@ -1353,7 +1355,7 @@ export class GameEngine {
       this.spawnParticles(boss.x, boss.y, '#ff5b63', 18, 120);
       if (distance < pulseRadius) {
         this.damagePlayerFromBoss(
-          (10 + this.wave * 1.4) *
+          (9 + this.wave * 1.15) *
             (boss.kind === 'STORM_BRAIN' ? 1.18 : 1),
         );
       }
@@ -1370,7 +1372,7 @@ export class GameEngine {
             vx: Math.cos(angle) * (175 + this.wave * 3),
             vy: Math.sin(angle) * (175 + this.wave * 3),
             radius: 6,
-            damage: 9 + this.wave * 0.7,
+            damage: 8 + this.wave * 0.55,
             life: 4.8,
             color: '#b678ff',
             bossOwned: true,
@@ -1408,7 +1410,7 @@ export class GameEngine {
             vx: Math.cos(angle) * (250 + this.wave * 4),
             vy: Math.sin(angle) * (250 + this.wave * 4),
             radius: 5,
-            damage: 8 + this.wave * 0.62,
+            damage: 7 + this.wave * 0.5,
             life: 3.4,
             color: '#ffcf57',
             bossOwned: true,
@@ -2865,17 +2867,35 @@ export class GameEngine {
     ctx.restore();
   }
 
-  private pointerWorld(event: MouseEvent) {
+  private clientToWorld(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
+    const scale = Math.min(
+      rect.width / VIEW_WIDTH,
+      rect.height / VIEW_HEIGHT,
+    );
+    const contentWidth = VIEW_WIDTH * scale;
+    const contentHeight = VIEW_HEIGHT * scale;
+    const offsetX = (rect.width - contentWidth) / 2;
+    const offsetY = (rect.height - contentHeight) / 2;
+    const viewX = clamp(
+      (clientX - rect.left - offsetX) / Math.max(scale, 0.0001),
+      0,
+      VIEW_WIDTH,
+    );
+    const viewY = clamp(
+      (clientY - rect.top - offsetY) / Math.max(scale, 0.0001),
+      0,
+      VIEW_HEIGHT,
+    );
     const camera = this.getCamera();
     return {
-      x:
-        ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH +
-        camera.x,
-      y:
-        ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT +
-        camera.y,
+      x: clamp(viewX + camera.x, 0, WORLD_WIDTH),
+      y: clamp(viewY + camera.y, 0, WORLD_HEIGHT),
     };
+  }
+
+  private pointerWorld(event: MouseEvent) {
+    return this.clientToWorld(event.clientX, event.clientY);
   }
 
   private onKeyDown = (event: KeyboardEvent) => {
@@ -2909,12 +2929,9 @@ export class GameEngine {
     if (!event.touches.length) return;
     event.preventDefault();
     const touch = event.touches[0];
-    const rect = this.canvas.getBoundingClientRect();
-    const camera = this.getCamera();
-    this.aimX =
-      ((touch.clientX - rect.left) / rect.width) * VIEW_WIDTH + camera.x;
-    this.aimY =
-      ((touch.clientY - rect.top) / rect.height) * VIEW_HEIGHT + camera.y;
+    const point = this.clientToWorld(touch.clientX, touch.clientY);
+    this.aimX = point.x;
+    this.aimY = point.y;
   };
 
   private onContextMenu = (event: MouseEvent) => {
