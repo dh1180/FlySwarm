@@ -4,12 +4,17 @@ import { DopaminePolicy } from './learning/DopaminePolicy';
 import type {
   Bullet,
   FlyAgent,
+  EvolutionKey,
+  GameClearSnapshot,
   GameOverSnapshot,
   Genome,
   HudSnapshot,
   Orb,
+  OwnedSkill,
   Player,
   SelectedFly,
+  SkillKey,
+  SkillRarity,
   UpgradeKey,
   UpgradeOption,
 } from './types';
@@ -18,7 +23,7 @@ const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1350;
-const WAVE_SECONDS = 28;
+const WAVE_SECONDS = 32;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
@@ -58,6 +63,7 @@ type DamageField = {
   life: number;
   maxLife: number;
   damage: number;
+  pulseTimer: number;
 };
 
 type Particle = {
@@ -81,6 +87,33 @@ type LightningFx = {
   color: string;
 };
 
+type RingFx = {
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  startRadius: number;
+  endRadius: number;
+  color: string;
+  lineWidth: number;
+};
+
+type UpgradeDefinition = {
+  key: UpgradeKey;
+  title: string;
+  description: string;
+  rarity: Exclude<SkillRarity, 'EVOLUTION'>;
+  maxLevel: number;
+};
+
+type EvolutionDefinition = {
+  key: EvolutionKey;
+  title: string;
+  description: string;
+  detail: string;
+  requirements: [UpgradeKey, UpgradeKey];
+};
+
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
@@ -94,44 +127,70 @@ const randomRange = (min: number, max: number) =>
 
 const copyGenome = (g: Genome): Genome => ({ ...g });
 
-const upgradeCatalog: UpgradeOption[] = [
-  { key: 'damage', title: 'Heavy Shot', description: '투사체 피해량 +25%', rarity: 'COMMON' },
-  { key: 'firerate', title: 'Synapse Rush', description: '자동 공격 주기 -18%', rarity: 'COMMON' },
-  { key: 'multishot', title: 'Split Signal', description: '동시 발사 투사체 +1', rarity: 'RARE' },
-  { key: 'speed', title: 'Motor Cortex', description: '이동속도 +12%', rarity: 'COMMON' },
-  { key: 'health', title: 'Thick Skin', description: '최대 체력 +25 및 즉시 회복', rarity: 'COMMON' },
-  { key: 'pierce', title: 'Axon Piercer', description: '투사체 관통 횟수 +1', rarity: 'RARE' },
-  { key: 'magnet', title: 'Dopamine Field', description: '경험치 흡수 반경 +35', rarity: 'COMMON' },
-  { key: 'bulletSpeed', title: 'Fast Conduction', description: '투사체 속도 +20%', rarity: 'COMMON' },
-  { key: 'bulletSize', title: 'Giant Vesicle', description: '투사체 크기 +1.2', rarity: 'COMMON' },
-  { key: 'crit', title: 'Burst Firing', description: '치명타 확률 +8%', rarity: 'RARE' },
-  { key: 'regen', title: 'Homeostasis', description: '초당 체력 재생 +0.65', rarity: 'RARE' },
-  { key: 'armor', title: 'Chitin Layer', description: '받는 피해 5% 감소', rarity: 'RARE' },
-  { key: 'knockback', title: 'Motor Shock', description: '적 넉백 +22', rarity: 'COMMON' },
-  { key: 'orbital', title: 'Satellite Neuron', description: '플레이어 주변 공격 오비탈 +1', rarity: 'NEURAL' },
-  { key: 'nova', title: 'Action Potential Nova', description: '주기적인 광역 신경 펄스 획득/강화', rarity: 'NEURAL' },
-  { key: 'xpGain', title: 'Memory Consolidation', description: '경험치 획득량 +25%', rarity: 'RARE' },
-  { key: 'bossDamage', title: 'Connectome Breaker', description: '전체뇌 보스 피해량 +25%', rarity: 'NEURAL' },
-  { key: 'critPower', title: 'Spike Burst', description: '치명타 배율 +0.45', rarity: 'RARE' },
-  { key: 'leech', title: 'Hemolymph Leech', description: '초파리 처치 시 체력 회복', rarity: 'RARE' },
-  { key: 'toxinAura', title: 'Neurotoxin Cloud', description: '주변 적에게 지속 피해 오라', rarity: 'NEURAL' },
-  { key: 'chain', title: 'Chain Synapse', description: '명중 시 주변 적에게 연쇄 신호', rarity: 'NEURAL' },
-  { key: 'shield', title: 'Refractory Shield', description: '재생되는 신경 보호막 획득', rarity: 'RARE' },
-  { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력에서 이동/공격 속도 증가', rarity: 'RARE' },
-  { key: 'bulletLife', title: 'Long Axon', description: '투사체 생존시간 +30%', rarity: 'COMMON' },
-  { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속을 동시에 강화', rarity: 'NEURAL' },
-  { key: 'manualLance', title: 'Motor Lance', description: '주기적으로 가장 가까운 적에게 강력한 관통 신경탄 자동 발사', rarity: 'NEURAL' },
-  { key: 'targetLightning', title: 'Cortical Thunder', description: 'E: 마우스 위치에 직접 낙뢰 지정', rarity: 'NEURAL' },
-  { key: 'synapticField', title: 'Synaptic Carpet', description: '주기적으로 조준 방향에 지속 피해 장판 생성', rarity: 'NEURAL' },
-  { key: 'meteor', title: 'Glial Meteor', description: '주기적으로 강한 적 위치에 광역 낙하 공격', rarity: 'NEURAL' },
-  { key: 'ricochet', title: 'Recurrent Circuit', description: '명중 시 확률적으로 추가 투사체가 주변 적에게 튕김', rarity: 'RARE' },
-  { key: 'execute', title: 'Apoptosis Trigger', description: '체력이 낮은 적에게 추가 처형 피해', rarity: 'RARE' },
+const upgradeCatalog: UpgradeDefinition[] = [
+  { key: 'damage', title: 'Heavy Shot', description: '기본 투사체 피해 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'firerate', title: 'Synapse Rush', description: '자동 공격 속도 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'multishot', title: 'Split Signal', description: '동시 발사 수 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'speed', title: 'Motor Cortex', description: '이동속도 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'health', title: 'Thick Skin', description: '최대 체력과 즉시 회복', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'pierce', title: 'Axon Piercer', description: '투사체 관통 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'magnet', title: 'Dopamine Field', description: '경험치 즉시 획득 반경 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'bulletSpeed', title: 'Fast Conduction', description: '투사체 속도 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'bulletSize', title: 'Giant Vesicle', description: '투사체 크기 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'crit', title: 'Burst Firing', description: '치명타 확률 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'regen', title: 'Homeostasis', description: '체력 재생 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'armor', title: 'Chitin Layer', description: '받는 피해 감소', rarity: 'RARE', maxLevel: 5 },
+  { key: 'knockback', title: 'Motor Shock', description: '적 넉백 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'orbital', title: 'Satellite Neuron', description: '공격 오비탈 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'nova', title: 'Action Potential Nova', description: '주기 광역 신경 펄스 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'xpGain', title: 'Memory Consolidation', description: '경험치 획득량 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'bossDamage', title: 'Connectome Breaker', description: '보스 대상 피해 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'critPower', title: 'Spike Burst', description: '치명타 피해 배율 강화', rarity: 'RARE', maxLevel: 4 },
+  { key: 'leech', title: 'Hemolymph Leech', description: '처치 시 체력 회복', rarity: 'RARE', maxLevel: 5 },
+  { key: 'toxinAura', title: 'Neurotoxin Cloud', description: '주변 지속 피해 오라 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'chain', title: 'Chain Synapse', description: '연쇄 피해 확률과 배율 강화', rarity: 'NEURAL', maxLevel: 4 },
+  { key: 'shield', title: 'Refractory Shield', description: '재생 보호막 강화', rarity: 'RARE', maxLevel: 5 },
+  { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력 공격/이동 가속 강화', rarity: 'RARE', maxLevel: 4 },
+  { key: 'bulletLife', title: 'Long Axon', description: '투사체 수명과 사거리 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속 복합 강화', rarity: 'NEURAL', maxLevel: 4 },
+  { key: 'manualLance', title: 'Motor Lance', description: '자동 관통 신경탄 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'targetLightning', title: 'Cortical Thunder', description: '지정 낙뢰 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'synapticField', title: 'Synaptic Carpet', description: '지속 피해 장판 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'meteor', title: 'Glial Meteor', description: '주기 광역 낙하 공격 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'ricochet', title: 'Recurrent Circuit', description: '추가 튕김탄 강화', rarity: 'RARE', maxLevel: 5 },
+  { key: 'execute', title: 'Apoptosis Trigger', description: '저체력 적 처형 피해 강화', rarity: 'RARE', maxLevel: 5 },
 ];
+
+const evolutionCatalog: EvolutionDefinition[] = [
+  {
+    key: 'stormLance',
+    title: 'THUNDER LANCE',
+    description: 'Motor Lance + Cortical Thunder 융합',
+    detail: '자동 Lance가 표적에 낙뢰를 동반하고, 지정 낙뢰가 8방향 Lance를 방출합니다.',
+    requirements: ['manualLance', 'targetLightning'],
+  },
+  {
+    key: 'ionCataclysm',
+    title: 'ION CATACLYSM',
+    description: 'Synaptic Carpet + Glial Meteor 융합',
+    detail: '장판이 주기적으로 번개 폭발을 일으키고 Meteor의 광역 피해와 충격파가 강화됩니다.',
+    requirements: ['synapticField', 'meteor'],
+  },
+  {
+    key: 'neuralSingularity',
+    title: 'NEURAL SINGULARITY',
+    description: 'Action Potential Nova + Satellite Neuron 융합',
+    detail: 'Nova 범위·피해가 크게 증가하고 주변 적을 끌어당기며 오비탈 피해도 증폭됩니다.',
+    requirements: ['nova', 'orbital'],
+  },
+];
+
 
 type Callbacks = {
   onHud: (hud: HudSnapshot) => void;
   onLevelUp: (options: UpgradeOption[]) => void;
   onGameOver: (result: GameOverSnapshot) => void;
+  onGameClear: (result: GameClearSnapshot) => void;
 };
 
 export class GameEngine {
@@ -146,6 +205,7 @@ export class GameEngine {
   private running = false;
   private pausedForUpgrade = false;
   private gameOver = false;
+  private gameCleared = false;
   private last = 0;
   private time = 0;
   private hudTimer = 0;
@@ -182,7 +242,12 @@ export class GameEngine {
   private damageFields: DamageField[] = [];
   private particles: Particle[] = [];
   private lightningFx: LightningFx[] = [];
+  private ringFx: RingFx[] = [];
   private boss: Boss | null = null;
+  private readonly defeatedBosses = new Set<BossKind>();
+  private readonly upgradeLevels: Partial<Record<UpgradeKey, number>> = {};
+  private readonly evolvedSkills = new Set<EvolutionKey>();
+  private ownedSkillOrder: SkillKey[] = [];
   private swarmGenome: Genome = {
     aggression: 0.56,
     fear: 0.35,
@@ -217,6 +282,7 @@ export class GameEngine {
     this.brain.load();
     this.running = true;
     this.gameOver = false;
+    this.gameCleared = false;
     this.last = performance.now();
     this.raf = requestAnimationFrame(this.loop);
   }
@@ -230,6 +296,7 @@ export class GameEngine {
     this.damageFields = [];
     this.particles = [];
     this.lightningFx = [];
+    this.ringFx = [];
     this.boss = null;
     this.time = 0;
     this.hudTimer = 0;
@@ -259,6 +326,13 @@ export class GameEngine {
     this.touchMoveY = 0;
     this.pausedForUpgrade = false;
     this.gameOver = false;
+    this.gameCleared = false;
+    this.defeatedBosses.clear();
+    for (const key of Object.keys(this.upgradeLevels) as UpgradeKey[]) {
+      delete this.upgradeLevels[key];
+    }
+    this.evolvedSkills.clear();
+    this.ownedSkillOrder = [];
     this.swarmGenome = {
       aggression: 0.56,
       fear: 0.35,
@@ -276,13 +350,61 @@ export class GameEngine {
     this.emitHud();
   }
 
-  applyUpgrade(key: UpgradeKey) {
+  applyUpgrade(key: SkillKey) {
+    if (this.isEvolutionKey(key)) {
+      const evolution = evolutionCatalog.find((item) => item.key === key);
+      if (
+        !evolution ||
+        this.evolvedSkills.has(key) ||
+        !this.canEvolve(evolution)
+      ) {
+        this.pausedForUpgrade = false;
+        return;
+      }
+
+      this.evolvedSkills.add(key);
+      this.ownedSkillOrder.push(key);
+      this.spawnRing(
+        this.player.x,
+        this.player.y,
+        20,
+        260,
+        '#ffffff',
+        0.7,
+        8,
+      );
+      this.spawnParticles(this.player.x, this.player.y, '#ffffff', 42, 220);
+      this.screenShake = Math.max(this.screenShake, 13);
+      this.pausedForUpgrade = false;
+      this.emitHud();
+      return;
+    }
+
+    const definition = upgradeCatalog.find((item) => item.key === key);
+    if (!definition) {
+      this.pausedForUpgrade = false;
+      return;
+    }
+
+    const currentLevel = this.getUpgradeLevel(key);
+    if (currentLevel >= definition.maxLevel) {
+      this.pausedForUpgrade = false;
+      return;
+    }
+
+    const nextLevel = currentLevel + 1;
+    this.upgradeLevels[key] = nextLevel;
+    if (currentLevel === 0) this.ownedSkillOrder.push(key);
+
     switch (key) {
       case 'damage':
         this.player.damage *= 1.25;
         break;
       case 'firerate':
-        this.player.fireInterval = Math.max(0.07, this.player.fireInterval * 0.82);
+        this.player.fireInterval = Math.max(
+          0.07,
+          this.player.fireInterval * 0.82,
+        );
         break;
       case 'multishot':
         this.player.bulletCount = Math.min(9, this.player.bulletCount + 1);
@@ -307,7 +429,10 @@ export class GameEngine {
         this.player.bulletSize += 1.2;
         break;
       case 'crit':
-        this.player.critChance = Math.min(0.52, this.player.critChance + 0.08);
+        this.player.critChance = Math.min(
+          0.52,
+          this.player.critChance + 0.08,
+        );
         break;
       case 'regen':
         this.player.regen += 0.65;
@@ -328,7 +453,10 @@ export class GameEngine {
           this.player.novaDamage = 58;
           this.player.novaTimer = 0;
         } else {
-          this.player.novaInterval = Math.max(2.6, this.player.novaInterval * 0.86);
+          this.player.novaInterval = Math.max(
+            2.6,
+            this.player.novaInterval * 0.86,
+          );
           this.player.novaDamage *= 1.22;
         }
         break;
@@ -354,8 +482,14 @@ export class GameEngine {
         }
         break;
       case 'chain':
-        this.player.chainChance = Math.min(0.72, this.player.chainChance + 0.18);
-        this.player.chainDamage = Math.min(0.8, Math.max(0.32, this.player.chainDamage + 0.08));
+        this.player.chainChance = Math.min(
+          0.72,
+          this.player.chainChance + 0.18,
+        );
+        this.player.chainDamage = Math.min(
+          0.8,
+          Math.max(0.32, this.player.chainDamage + 0.08),
+        );
         break;
       case 'shield':
         this.player.shieldMax += 22;
@@ -370,14 +504,23 @@ export class GameEngine {
         break;
       case 'overclock':
         this.player.damage *= 1.14;
-        this.player.fireInterval = Math.max(0.07, this.player.fireInterval * 0.9);
+        this.player.fireInterval = Math.max(
+          0.07,
+          this.player.fireInterval * 0.9,
+        );
         this.player.speed *= 1.06;
         break;
       case 'manualLance':
-        this.player.manualLanceLevel = Math.min(5, this.player.manualLanceLevel + 1);
+        this.player.manualLanceLevel = Math.min(
+          5,
+          this.player.manualLanceLevel + 1,
+        );
         break;
       case 'targetLightning':
-        this.player.lightningLevel = Math.min(5, this.player.lightningLevel + 1);
+        this.player.lightningLevel = Math.min(
+          5,
+          this.player.lightningLevel + 1,
+        );
         break;
       case 'synapticField':
         this.player.fieldLevel = Math.min(5, this.player.fieldLevel + 1);
@@ -388,13 +531,186 @@ export class GameEngine {
         this.player.meteorTimer = 0;
         break;
       case 'ricochet':
-        this.player.ricochetLevel = Math.min(5, this.player.ricochetLevel + 1);
+        this.player.ricochetLevel = Math.min(
+          5,
+          this.player.ricochetLevel + 1,
+        );
         break;
       case 'execute':
-        this.player.executeLevel = Math.min(5, this.player.executeLevel + 1);
+        this.player.executeLevel = Math.min(
+          5,
+          this.player.executeLevel + 1,
+        );
         break;
     }
+
     this.pausedForUpgrade = false;
+    this.emitHud();
+  }
+
+  private getUpgradeLevel(key: UpgradeKey) {
+    return this.upgradeLevels[key] ?? 0;
+  }
+
+  private isEvolutionKey(key: SkillKey): key is EvolutionKey {
+    return evolutionCatalog.some((item) => item.key === key);
+  }
+
+  private canEvolve(evolution: EvolutionDefinition) {
+    return evolution.requirements.every((key) => {
+      const definition = upgradeCatalog.find((item) => item.key === key);
+      return (
+        definition !== undefined &&
+        this.getUpgradeLevel(key) >= definition.maxLevel
+      );
+    });
+  }
+
+  private getUpgradeDetail(key: UpgradeKey, nextLevel: number) {
+    switch (key) {
+      case 'damage':
+        return `Lv ${nextLevel}: 기본 투사체 피해 ×1.25`;
+      case 'firerate':
+        return `Lv ${nextLevel}: 자동 공격 간격 ×0.82 (약 22% 빠름)`;
+      case 'multishot':
+        return `Lv ${nextLevel}: 동시 발사 투사체 +1`;
+      case 'speed':
+        return `Lv ${nextLevel}: 이동속도 ×1.12`;
+      case 'health':
+        return `Lv ${nextLevel}: 최대 HP +25 / 즉시 HP +38`;
+      case 'pierce':
+        return `Lv ${nextLevel}: 기본 투사체 관통 +1`;
+      case 'magnet':
+        return `Lv ${nextLevel}: XP 즉시 획득 반경 +35`;
+      case 'bulletSpeed':
+        return `Lv ${nextLevel}: 투사체 속도 ×1.20`;
+      case 'bulletSize':
+        return `Lv ${nextLevel}: 투사체 반경 +1.2`;
+      case 'crit':
+        return `Lv ${nextLevel}: 치명타 확률 +8%p`;
+      case 'regen':
+        return `Lv ${nextLevel}: 초당 체력 재생 +0.65`;
+      case 'armor':
+        return `Lv ${nextLevel}: 받는 피해 5%p 감소`;
+      case 'knockback':
+        return `Lv ${nextLevel}: 넉백 +22`;
+      case 'orbital':
+        return `Lv ${nextLevel}: 오비탈 +1 / 오비탈 피해 +1.5`;
+      case 'nova':
+        return nextLevel === 1
+          ? 'Lv 1: 7초마다 반경 220, 피해 58 Nova 해금'
+          : `Lv ${nextLevel}: Nova 주기 ×0.86 / 피해 ×1.22`;
+      case 'xpGain':
+        return `Lv ${nextLevel}: 경험치 획득 배율 +0.25`;
+      case 'bossDamage':
+        return `Lv ${nextLevel}: 보스 대상 피해 ×1.25`;
+      case 'critPower':
+        return `Lv ${nextLevel}: 치명타 피해 배율 +0.45`;
+      case 'leech':
+        return `Lv ${nextLevel}: 일반 적 처치 회복 +0.8 HP`;
+      case 'toxinAura':
+        return nextLevel === 1
+          ? 'Lv 1: 반경 105 / DPS 14 독성 오라 해금'
+          : `Lv ${nextLevel}: 오라 DPS ×1.24 / 반경 +12`;
+      case 'chain':
+        return `Lv ${nextLevel}: 연쇄 발동률 +18%p / 연쇄 피해 배율 +0.08`;
+      case 'shield':
+        return `Lv ${nextLevel}: 보호막 최대치 +22 / 재생 +2.4/s`;
+      case 'adrenaline':
+        return `Lv ${nextLevel}: HP 35% 이하 이속 +14%, 공속 +18% 추가`;
+      case 'bulletLife':
+        return `Lv ${nextLevel}: 투사체 수명 ×1.30`;
+      case 'overclock':
+        return `Lv ${nextLevel}: 피해 ×1.14 / 공격간격 ×0.90 / 이속 ×1.06`;
+      case 'manualLance': {
+        const cooldown = Math.max(0.38, 1.22 - nextLevel * 0.12);
+        const damage = 2.05 + nextLevel * 0.46;
+        const pierce = 5 + nextLevel * 2;
+        return `Lv ${nextLevel}: 자동 Lance 피해 ×${damage.toFixed(2)}, 관통 ${pierce}, 주기 ${cooldown.toFixed(2)}s`;
+      }
+      case 'targetLightning': {
+        const cooldown = Math.max(1.8, 5.7 - nextLevel * 0.62);
+        const radius = 88 + nextLevel * 13;
+        return `Lv ${nextLevel}: 낙뢰 기본피해 ${72 + nextLevel * 34}+공격력×0.9 / 반경 ${radius} / 쿨 ${cooldown.toFixed(2)}s`;
+      }
+      case 'synapticField':
+        return `Lv ${nextLevel}: 장판 DPS ${14 + nextLevel * 7} / 반경 ${82 + nextLevel * 10} / 지속 ${(4.5 + nextLevel * 0.45).toFixed(1)}s`;
+      case 'meteor':
+        return `Lv ${nextLevel}: Meteor 피해 ${66 + nextLevel * 30} / 반경 ${112 + nextLevel * 12} / 주기 ${Math.max(3.8, 7.3 - nextLevel * 0.55).toFixed(2)}s`;
+      case 'ricochet':
+        return `Lv ${nextLevel}: 튕김 확률 ${12 + nextLevel * 6}% / 피해 ${35 + nextLevel * 8}%`;
+      case 'execute':
+        return `Lv ${nextLevel}: HP ${(12 + nextLevel * 3.5).toFixed(1)}% 이하 적에게 추가 피해 ${42 + nextLevel * 12}%`;
+    }
+    return '';
+  }
+
+  private buildUpgradeOption(definition: UpgradeDefinition): UpgradeOption {
+    const level = this.getUpgradeLevel(definition.key);
+    const nextLevel = Math.min(definition.maxLevel, level + 1);
+    return {
+      key: definition.key,
+      title: definition.title,
+      description: definition.description,
+      detail: this.getUpgradeDetail(definition.key, nextLevel),
+      rarity: definition.rarity,
+      level,
+      nextLevel,
+      maxLevel: definition.maxLevel,
+    };
+  }
+
+  private buildEvolutionOption(
+    evolution: EvolutionDefinition,
+  ): UpgradeOption {
+    return {
+      key: evolution.key,
+      title: evolution.title,
+      description: evolution.description,
+      detail: evolution.detail,
+      rarity: 'EVOLUTION',
+      level: 0,
+      nextLevel: 1,
+      maxLevel: 1,
+      isEvolution: true,
+      requirements: evolution.requirements.map((key) => {
+        const definition = upgradeCatalog.find((item) => item.key === key);
+        return definition?.title ?? key;
+      }),
+    };
+  }
+
+  private getOwnedSkills(): OwnedSkill[] {
+    return this.ownedSkillOrder.reduce<OwnedSkill[]>((skills, key) => {
+      if (this.isEvolutionKey(key)) {
+        const evolution = evolutionCatalog.find((item) => item.key === key);
+        if (evolution && this.evolvedSkills.has(key)) {
+          skills.push({
+            key,
+            title: evolution.title,
+            level: 1,
+            maxLevel: 1,
+            rarity: 'EVOLUTION',
+            evolved: true,
+          });
+        }
+        return skills;
+      }
+
+      const definition = upgradeCatalog.find((item) => item.key === key);
+      const level = this.getUpgradeLevel(key);
+      if (definition && level > 0) {
+        skills.push({
+          key,
+          title: definition.title,
+          level,
+          maxLevel: definition.maxLevel,
+          rarity: definition.rarity,
+          evolved: false,
+        });
+      }
+      return skills;
+    }, []);
   }
 
   setTouchMove(x: number, y: number) {
@@ -484,7 +800,7 @@ export class GameEngine {
     const dt = Math.min(0.033, (now - this.last) / 1000);
     this.last = now;
 
-    if (!this.pausedForUpgrade && !this.gameOver) {
+    if (!this.pausedForUpgrade && !this.gameOver && !this.gameCleared) {
       this.update(dt);
     }
     this.render();
@@ -551,6 +867,7 @@ export class GameEngine {
     this.damageFields = this.damageFields.filter((field) => field.life > 0);
     this.particles = this.particles.filter((particle) => particle.life > 0);
     this.lightningFx = this.lightningFx.filter((fx) => fx.life > 0);
+    this.ringFx = this.ringFx.filter((fx) => fx.life > 0);
 
     if (this.player.hp <= 0) {
       this.player.hp = 0;
@@ -618,8 +935,8 @@ export class GameEngine {
 
   private spawnFlies() {
     const bossTax = this.boss ? 0.72 : 1;
-    const cap = Math.floor(Math.min(360, 48 + this.wave * 24) * bossTax);
-    const interval = Math.max(0.075, 0.43 - this.wave * 0.024);
+    const cap = Math.floor(Math.min(310, 38 + this.wave * 19) * bossTax);
+    const interval = Math.max(0.095, 0.49 - this.wave * 0.023);
 
     while (this.spawnTimer >= interval && this.flies.length < cap) {
       this.spawnTimer -= interval;
@@ -683,7 +1000,7 @@ export class GameEngine {
       genome.fear = 0.05;
     }
 
-    const baseHp = 26 + this.wave * 3.4;
+    const baseHp = 24 + this.wave * 2.9;
     const hpMultiplier =
       kind === 'BRUTE'
         ? 3.25
@@ -782,7 +1099,7 @@ export class GameEngine {
             this.player.x,
             this.player.y,
             215 + this.wave * 4,
-            8 + this.wave * 0.65,
+            6.5 + this.wave * 0.5,
             '#ff86d7',
           );
           this.spawnParticles(fly.x, fly.y, '#ff86d7', 6, 55);
@@ -865,7 +1182,7 @@ export class GameEngine {
         fly.kind === 'BOMBER' &&
         playerDistance < this.player.radius + fly.radius + 13
       ) {
-        this.damagePlayer(22 + this.wave * 1.8);
+        this.damagePlayer(18 + this.wave * 1.4);
         this.screenShake = Math.max(this.screenShake, 10);
         this.damageFlash = Math.max(this.damageFlash, 0.22);
         this.spawnParticles(fly.x, fly.y, '#ff5b63', 24, 160);
@@ -898,7 +1215,7 @@ export class GameEngine {
           ? { name: 'STORM BRAIN', hp: 1.08, radius: 36, special: 3.1 }
           : { name: 'SWARM QUEEN', hp: 1.36, radius: 43, special: 4.6 };
 
-    const maxHp = (1050 + this.wave * 330) * config.hp;
+    const maxHp = (980 + this.wave * 285) * config.hp;
     const camera = this.getCamera();
     this.boss = {
       kind,
@@ -1025,7 +1342,7 @@ export class GameEngine {
     if (distance < boss.radius + this.player.radius + 8) {
       const contactScale =
         boss.kind === 'SWARM_QUEEN' ? 1.28 : boss.kind === 'NEURAL_HUNTER' ? 1.12 : 1;
-      this.damagePlayerFromBoss((25 + this.wave * 1.8) * contactScale * dt);
+      this.damagePlayerFromBoss((22 + this.wave * 1.5) * contactScale * dt);
     }
 
     if (
@@ -1039,7 +1356,7 @@ export class GameEngine {
       this.spawnParticles(boss.x, boss.y, '#ff5b63', 18, 120);
       if (distance < pulseRadius) {
         this.damagePlayerFromBoss(
-          (10 + this.wave * 1.4) *
+          (9 + this.wave * 1.15) *
             (boss.kind === 'STORM_BRAIN' ? 1.18 : 1),
         );
       }
@@ -1056,7 +1373,7 @@ export class GameEngine {
             vx: Math.cos(angle) * (175 + this.wave * 3),
             vy: Math.sin(angle) * (175 + this.wave * 3),
             radius: 6,
-            damage: 9 + this.wave * 0.7,
+            damage: 8 + this.wave * 0.55,
             life: 4.8,
             color: '#b678ff',
             bossOwned: true,
@@ -1094,7 +1411,7 @@ export class GameEngine {
             vx: Math.cos(angle) * (250 + this.wave * 4),
             vy: Math.sin(angle) * (250 + this.wave * 4),
             radius: 5,
-            damage: 8 + this.wave * 0.62,
+            damage: 7 + this.wave * 0.5,
             life: 3.4,
             color: '#ffcf57',
             bossOwned: true,
@@ -1356,7 +1673,14 @@ export class GameEngine {
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
           if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + 10) {
-            fly.hp -= this.player.orbitalDamage * 6 * dt;
+            const orbitalMultiplier = this.evolvedSkills.has('neuralSingularity')
+              ? 1.75
+              : 1;
+            fly.hp -=
+              this.player.orbitalDamage *
+              6 *
+              orbitalMultiplier *
+              dt;
             if (fly.hp <= 0) this.killFly(fly);
           }
         }
@@ -1369,6 +1693,7 @@ export class GameEngine {
           this.damageBoss(
             this.player.orbitalDamage *
               4 *
+              (this.evolvedSkills.has('neuralSingularity') ? 1.75 : 1) *
               dt *
               this.player.bossDamage,
           );
@@ -1381,21 +1706,50 @@ export class GameEngine {
       if (this.player.novaTimer >= this.player.novaInterval) {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
-        const radius = 220;
+        const singularity = this.evolvedSkills.has('neuralSingularity');
+        const radius = singularity ? 320 : 220;
+        const damage = this.player.novaDamage * (singularity ? 1.65 : 1);
         this.damageCircle(
           this.player.x,
           this.player.y,
           radius,
-          this.player.novaDamage,
+          damage,
         );
+
+        if (singularity) {
+          for (const fly of this.flies) {
+            if (fly.hp <= 0) continue;
+            const dx = this.player.x - fly.x;
+            const dy = this.player.y - fly.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 0 && distance < 500) {
+              const pull = 90 * (1 - distance / 500);
+              fly.x += (dx / distance) * pull;
+              fly.y += (dy / distance) * pull;
+            }
+          }
+        }
+
         this.spawnParticles(
           this.player.x,
           this.player.y,
-          '#5beaff',
-          28,
-          180,
+          singularity ? '#ffffff' : '#5beaff',
+          singularity ? 48 : 28,
+          singularity ? 240 : 180,
         );
-        this.screenShake = Math.max(this.screenShake, 5);
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          24,
+          radius,
+          singularity ? '#ffffff' : '#5beaff',
+          0.55,
+          singularity ? 9 : 5,
+        );
+        this.screenShake = Math.max(
+          this.screenShake,
+          singularity ? 11 : 5,
+        );
       }
     }
 
@@ -1422,8 +1776,24 @@ export class GameEngine {
           life: 4.5 + this.player.fieldLevel * 0.45,
           maxLife: 4.5 + this.player.fieldLevel * 0.45,
           damage: 14 + this.player.fieldLevel * 7,
+          pulseTimer: 0,
         });
-        this.spawnParticles(x, y, '#9cff47', 18, 90);
+        this.spawnParticles(
+          x,
+          y,
+          this.evolvedSkills.has('ionCataclysm') ? '#ffffff' : '#9cff47',
+          this.evolvedSkills.has('ionCataclysm') ? 28 : 18,
+          this.evolvedSkills.has('ionCataclysm') ? 145 : 90,
+        );
+        this.spawnRing(
+          x,
+          y,
+          12,
+          82 + this.player.fieldLevel * 10,
+          this.evolvedSkills.has('ionCataclysm') ? '#d9f7ff' : '#9cff47',
+          0.45,
+          4,
+        );
       }
     }
 
@@ -1483,6 +1853,7 @@ export class GameEngine {
   private updateDamageFields(dt: number) {
     for (const field of this.damageFields) {
       field.life -= dt;
+      field.pulseTimer += dt;
       if (field.life <= 0) continue;
 
       for (const fly of this.spatial.query(
@@ -1509,6 +1880,37 @@ export class GameEngine {
           field.damage * 0.72 * dt * this.player.bossDamage,
         );
       }
+
+      if (
+        this.evolvedSkills.has('ionCataclysm') &&
+        field.pulseTimer >= 0.95
+      ) {
+        field.pulseTimer = 0;
+        this.damageCircle(
+          field.x,
+          field.y,
+          field.radius * 0.72,
+          field.damage * 1.35,
+        );
+        this.lightningFx.push({
+          x1: field.x + randomRange(-80, 80),
+          y1: Math.max(0, field.y - 440),
+          x2: field.x,
+          y2: field.y,
+          life: 0.24,
+          maxLife: 0.24,
+          color: '#d9f7ff',
+        });
+        this.spawnRing(
+          field.x,
+          field.y,
+          10,
+          field.radius * 0.8,
+          '#d9f7ff',
+          0.3,
+          4,
+        );
+      }
     }
   }
 
@@ -1521,6 +1923,9 @@ export class GameEngine {
       particle.vy *= 0.96;
     }
     for (const fx of this.lightningFx) {
+      fx.life -= dt;
+    }
+    for (const fx of this.ringFx) {
       fx.life -= dt;
     }
   }
@@ -1549,6 +1954,27 @@ export class GameEngine {
         color,
       });
     }
+  }
+
+  private spawnRing(
+    x: number,
+    y: number,
+    startRadius: number,
+    endRadius: number,
+    color: string,
+    life: number,
+    lineWidth: number,
+  ) {
+    this.ringFx.push({
+      x,
+      y,
+      life,
+      maxLife: life,
+      startRadius,
+      endRadius,
+      color,
+      lineWidth,
+    });
   }
 
   private damageCircle(
@@ -1590,7 +2016,8 @@ export class GameEngine {
       this.player.manualLanceLevel <= 0 ||
       this.player.manualLanceCooldown > 0 ||
       this.pausedForUpgrade ||
-      this.gameOver
+      this.gameOver ||
+      this.gameCleared
     ) {
       return;
     }
@@ -1624,27 +2051,70 @@ export class GameEngine {
     if (!Number.isFinite(bestDistance)) return;
 
     const level = this.player.manualLanceLevel;
+    const evolved = this.evolvedSkills.has('stormLance');
     const aim = normalize(targetX - this.player.x, targetY - this.player.y);
-    this.player.manualLanceCooldown = Math.max(0.38, 1.22 - level * 0.12);
+    this.player.manualLanceCooldown =
+      Math.max(0.38, 1.22 - level * 0.12) * (evolved ? 0.72 : 1);
+
     this.bullets.push({
       x: this.player.x + aim.x * 16,
       y: this.player.y + aim.y * 16,
-      vx: aim.x * (860 + level * 55),
-      vy: aim.y * (860 + level * 55),
-      radius: 7 + level * 0.8,
+      vx: aim.x * (860 + level * 55) * (evolved ? 1.18 : 1),
+      vy: aim.y * (860 + level * 55) * (evolved ? 1.18 : 1),
+      radius: 7 + level * 0.8 + (evolved ? 2.5 : 0),
       life: 1.05 + level * 0.08,
-      damage: this.player.damage * (2.05 + level * 0.46),
-      pierce: 5 + level * 2,
+      damage:
+        this.player.damage *
+        (2.05 + level * 0.46) *
+        (evolved ? 1.35 : 1),
+      pierce: 5 + level * 2 + (evolved ? 5 : 0),
       hit: new Set<number>(),
       critical: false,
       style: 'LANCE',
     });
-    this.spawnParticles(this.player.x, this.player.y, '#ffffff', 12, 100);
-    this.screenShake = Math.max(this.screenShake, 2);
+
+    if (evolved) {
+      const thunderDamage = this.player.damage * 1.2;
+      this.damageCircle(targetX, targetY, 72, thunderDamage);
+      for (let i = 0; i < 2; i += 1) {
+        this.lightningFx.push({
+          x1: targetX + randomRange(-90, 90),
+          y1: Math.max(0, targetY - randomRange(360, 520)),
+          x2: targetX,
+          y2: targetY,
+          life: 0.22,
+          maxLife: 0.22,
+          color: '#d9f7ff',
+        });
+      }
+      this.spawnRing(targetX, targetY, 8, 82, '#d9f7ff', 0.28, 4);
+    }
+
+    this.spawnParticles(
+      this.player.x,
+      this.player.y,
+      evolved ? '#d9f7ff' : '#ffffff',
+      evolved ? 26 : 16,
+      evolved ? 190 : 125,
+    );
+    this.spawnRing(
+      this.player.x,
+      this.player.y,
+      8,
+      evolved ? 62 : 42,
+      evolved ? '#d9f7ff' : '#ffffff',
+      0.22,
+      evolved ? 6 : 4,
+    );
+    this.screenShake = Math.max(this.screenShake, evolved ? 5.5 : 3.2);
   }
 
   private getLightningCooldownDuration() {
-    return Math.max(1.8, 5.7 - this.player.lightningLevel * 0.62);
+    const base = Math.max(
+      1.8,
+      5.7 - this.player.lightningLevel * 0.62,
+    );
+    return base * (this.evolvedSkills.has('stormLance') ? 0.82 : 1);
   }
 
   private castTargetLightning() {
@@ -1652,29 +2122,83 @@ export class GameEngine {
       this.player.lightningLevel <= 0 ||
       this.player.lightningCooldown > 0 ||
       this.pausedForUpgrade ||
-      this.gameOver
+      this.gameOver ||
+      this.gameCleared
     ) {
       return;
     }
 
     const level = this.player.lightningLevel;
+    const evolved = this.evolvedSkills.has('stormLance');
     const x = clamp(this.aimX, 25, WORLD_WIDTH - 25);
     const y = clamp(this.aimY, 25, WORLD_HEIGHT - 25);
-    const radius = 88 + level * 13;
-    const damage = 72 + level * 34 + this.player.damage * 0.9;
-    this.player.lightningCooldown = this.getLightningCooldownDuration();
+    const radius = (88 + level * 13) * (evolved ? 1.18 : 1);
+    const damage =
+      (72 + level * 34 + this.player.damage * 0.9) *
+      (evolved ? 1.25 : 1);
+
+    this.player.lightningCooldown =
+      this.getLightningCooldownDuration();
     this.damageCircle(x, y, radius, damage);
-    this.lightningFx.push({
-      x1: x + randomRange(-35, 35),
-      y1: Math.max(0, y - 520),
-      x2: x,
-      y2: y,
-      life: 0.32,
-      maxLife: 0.32,
-      color: '#d9f7ff',
-    });
-    this.spawnParticles(x, y, '#d9f7ff', 34, 210);
-    this.screenShake = Math.max(this.screenShake, 11);
+
+    const bolts = evolved ? 4 : 2;
+    for (let i = 0; i < bolts; i += 1) {
+      this.lightningFx.push({
+        x1: x + randomRange(-120, 120),
+        y1: Math.max(0, y - randomRange(430, 620)),
+        x2: x + randomRange(-8, 8),
+        y2: y + randomRange(-8, 8),
+        life: 0.38,
+        maxLife: 0.38,
+        color: evolved ? '#ffffff' : '#d9f7ff',
+      });
+    }
+
+    if (evolved) {
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i / 8) * TAU;
+        this.bullets.push({
+          x,
+          y,
+          vx: Math.cos(angle) * 740,
+          vy: Math.sin(angle) * 740,
+          radius: 6,
+          life: 0.82,
+          damage: this.player.damage * 1.35,
+          pierce: 3,
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
+        });
+      }
+    }
+
+    this.spawnParticles(
+      x,
+      y,
+      evolved ? '#ffffff' : '#d9f7ff',
+      evolved ? 58 : 40,
+      evolved ? 270 : 225,
+    );
+    this.spawnRing(
+      x,
+      y,
+      10,
+      radius * 1.15,
+      evolved ? '#ffffff' : '#d9f7ff',
+      0.42,
+      evolved ? 10 : 7,
+    );
+    this.spawnRing(
+      x,
+      y,
+      22,
+      radius * 0.72,
+      '#5beaff',
+      0.3,
+      4,
+    );
+    this.screenShake = Math.max(this.screenShake, evolved ? 16 : 12);
   }
 
   private triggerMeteor() {
@@ -1688,7 +2212,10 @@ export class GameEngine {
     } else {
       for (const fly of this.flies) {
         if (fly.hp <= 0) continue;
-        const score = Math.hypot(fly.x - this.player.x, fly.y - this.player.y);
+        const score = Math.hypot(
+          fly.x - this.player.x,
+          fly.y - this.player.y,
+        );
         if (score < bestScore) {
           bestScore = score;
           x = fly.x;
@@ -1698,19 +2225,41 @@ export class GameEngine {
     }
 
     const level = this.player.meteorLevel;
-    const radius = 112 + level * 12;
-    this.damageCircle(x, y, radius, 66 + level * 30);
-    this.lightningFx.push({
-      x1: x - 150,
-      y1: y - 420,
-      x2: x,
-      y2: y,
-      life: 0.27,
-      maxLife: 0.27,
-      color: '#ffcf57',
-    });
-    this.spawnParticles(x, y, '#ffcf57', 30, 185);
-    this.screenShake = Math.max(this.screenShake, 8);
+    const evolved = this.evolvedSkills.has('ionCataclysm');
+    const radius = (112 + level * 12) * (evolved ? 1.28 : 1);
+    const damage = (66 + level * 30) * (evolved ? 1.5 : 1);
+    this.damageCircle(x, y, radius, damage);
+
+    const trails = evolved ? 4 : 2;
+    for (let i = 0; i < trails; i += 1) {
+      this.lightningFx.push({
+        x1: x + randomRange(-220, 120),
+        y1: y - randomRange(390, 560),
+        x2: x,
+        y2: y,
+        life: 0.3,
+        maxLife: 0.3,
+        color: evolved ? '#ffffff' : '#ffcf57',
+      });
+    }
+
+    this.spawnParticles(
+      x,
+      y,
+      evolved ? '#ffffff' : '#ffcf57',
+      evolved ? 55 : 34,
+      evolved ? 280 : 205,
+    );
+    this.spawnRing(
+      x,
+      y,
+      16,
+      radius,
+      evolved ? '#d9f7ff' : '#ffcf57',
+      0.48,
+      evolved ? 9 : 6,
+    );
+    this.screenShake = Math.max(this.screenShake, evolved ? 14 : 9);
   }
 
   private findNearestFly(
@@ -1759,51 +2308,81 @@ export class GameEngine {
         this.player.hp + this.player.killHeal,
       );
     }
+    const xpValue =
+      fly.kind === 'BRUTE'
+        ? 3
+        : fly.kind === 'SPITTER' || fly.kind === 'BOMBER'
+          ? 2
+          : 1;
     this.orbs.push({
       x: fly.x,
       y: fly.y,
       vx: randomRange(-18, 18),
       vy: randomRange(-18, 18),
-      value: 1,
+      value: xpValue,
     });
     if (this.selectedId === fly.id) this.selectedId = null;
   }
 
   private killBoss() {
     if (!this.boss) return;
-    const { x, y } = this.boss;
-    this.spawnParticles(x, y, '#ffffff', 54, 230);
-    this.lightningFx.push({
-      x1: x - 180,
-      y1: y - 420,
-      x2: x,
-      y2: y,
-      life: 0.42,
-      maxLife: 0.42,
-      color: '#c7ff45',
-    });
-    this.screenShake = Math.max(this.screenShake, 15);
+    const { x, y, kind } = this.boss;
+    this.defeatedBosses.add(kind);
+
+    this.spawnParticles(x, y, '#ffffff', 72, 270);
+    for (let i = 0; i < 4; i += 1) {
+      this.lightningFx.push({
+        x1: x + randomRange(-220, 220),
+        y1: y - randomRange(300, 560),
+        x2: x + randomRange(-30, 30),
+        y2: y + randomRange(-30, 30),
+        life: 0.48,
+        maxLife: 0.48,
+        color: '#c7ff45',
+      });
+    }
+    this.spawnRing(x, y, 20, 310, '#ffffff', 0.72, 12);
+    this.spawnRing(x, y, 30, 220, '#c7ff45', 0.58, 7);
+    this.screenShake = Math.max(this.screenShake, 18);
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
+
     if (this.player.killHeal > 0) {
       this.player.hp = Math.min(
         this.player.maxHp,
         this.player.hp + this.player.killHeal * 12,
       );
     }
+
     this.kills += 50;
-    for (let i = 0; i < 26; i += 1) {
+    for (let i = 0; i < 32; i += 1) {
       this.orbs.push({
-        x: x + randomRange(-28, 28),
-        y: y + randomRange(-28, 28),
-        vx: randomRange(-100, 100),
-        vy: randomRange(-100, 100),
-        value: 3,
+        x: x + randomRange(-34, 34),
+        y: y + randomRange(-34, 34),
+        vx: randomRange(-110, 110),
+        vy: randomRange(-110, 110),
+        value: 4,
       });
     }
+
     this.boss = null;
-    this.nextBossWave = this.wave + 3;
     this.brain.reset();
+
+    if (this.defeatedBosses.size >= 3) {
+      this.gameCleared = true;
+      this.enemyShots = [];
+      this.callbacks.onGameClear({
+        kills: this.kills,
+        wave: this.wave,
+        seconds: this.time,
+        bossesDefeated: this.defeatedBosses.size,
+      });
+      this.emitHud();
+      return;
+    }
+
+    this.nextBossWave = this.wave + 3;
+    this.emitHud();
   }
 
   private updateOrbs(dt: number) {
@@ -1838,20 +2417,52 @@ export class GameEngine {
     if (this.player.xp >= this.player.xpNeed && !this.pausedForUpgrade) {
       this.player.xp -= this.player.xpNeed;
       this.player.level += 1;
-      this.player.xpNeed = Math.round(8 + this.player.level * 4.7);
-      this.pausedForUpgrade = true;
-      this.callbacks.onLevelUp(this.pickUpgradeOptions());
+      this.player.xpNeed = Math.round(
+        7 +
+          this.player.level * 3.8 +
+          Math.max(0, this.player.level - 12) * 0.8,
+      );
+      const options = this.pickUpgradeOptions();
+      if (options.length) {
+        this.pausedForUpgrade = true;
+        this.callbacks.onLevelUp(options);
+      } else {
+        this.player.hp = Math.min(
+          this.player.maxHp,
+          this.player.hp + 20,
+        );
+      }
       this.emitHud();
     }
   }
 
   private pickUpgradeOptions() {
-    const pool = [...upgradeCatalog];
     const result: UpgradeOption[] = [];
+
+    const evolutions = evolutionCatalog.filter(
+      (item) =>
+        !this.evolvedSkills.has(item.key) &&
+        this.canEvolve(item),
+    );
+
+    if (evolutions.length) {
+      const evolution =
+        evolutions[Math.floor(Math.random() * evolutions.length)];
+      result.push(this.buildEvolutionOption(evolution));
+    }
+
+    const pool = upgradeCatalog
+      .filter(
+        (item) =>
+          this.getUpgradeLevel(item.key) < item.maxLevel,
+      )
+      .map((item) => this.buildUpgradeOption(item));
+
     while (result.length < 3 && pool.length) {
       const index = Math.floor(Math.random() * pool.length);
       result.push(pool.splice(index, 1)[0]);
     }
+
     return result;
   }
 
@@ -2013,6 +2624,9 @@ export class GameEngine {
             : 0,
         xpPickupRadius: this.player.magnet,
       },
+      skills: this.getOwnedSkills(),
+      bossesDefeated: this.defeatedBosses.size,
+      bossesTotal: 3,
       boss: this.boss
         ? {
             active: true,
@@ -2062,6 +2676,7 @@ export class GameEngine {
     this.drawPlayer();
     this.drawPlayerAbilities();
     this.drawParticles();
+    this.drawRingFx();
     this.drawLightningFx();
     this.drawAim();
     ctx.restore();
@@ -2469,6 +3084,27 @@ export class GameEngine {
     ctx.restore();
   }
 
+  private drawRingFx() {
+    const ctx = this.ctx;
+    ctx.save();
+    for (const fx of this.ringFx) {
+      const progress = 1 - clamp(fx.life / fx.maxLife, 0, 1);
+      const radius =
+        fx.startRadius +
+        (fx.endRadius - fx.startRadius) * progress;
+      const alpha = 1 - progress;
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = fx.color;
+      ctx.shadowColor = fx.color;
+      ctx.shadowBlur = 14 * alpha;
+      ctx.lineWidth = Math.max(1, fx.lineWidth * (1 - progress * 0.45));
+      ctx.beginPath();
+      ctx.arc(fx.x, fx.y, radius, 0, TAU);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawLightningFx() {
     const ctx = this.ctx;
     ctx.save();
@@ -2551,17 +3187,35 @@ export class GameEngine {
     ctx.restore();
   }
 
-  private pointerWorld(event: MouseEvent) {
+  private clientToWorld(clientX: number, clientY: number) {
     const rect = this.canvas.getBoundingClientRect();
+    const scale = Math.min(
+      rect.width / VIEW_WIDTH,
+      rect.height / VIEW_HEIGHT,
+    );
+    const contentWidth = VIEW_WIDTH * scale;
+    const contentHeight = VIEW_HEIGHT * scale;
+    const offsetX = (rect.width - contentWidth) / 2;
+    const offsetY = (rect.height - contentHeight) / 2;
+    const viewX = clamp(
+      (clientX - rect.left - offsetX) / Math.max(scale, 0.0001),
+      0,
+      VIEW_WIDTH,
+    );
+    const viewY = clamp(
+      (clientY - rect.top - offsetY) / Math.max(scale, 0.0001),
+      0,
+      VIEW_HEIGHT,
+    );
     const camera = this.getCamera();
     return {
-      x:
-        ((event.clientX - rect.left) / rect.width) * VIEW_WIDTH +
-        camera.x,
-      y:
-        ((event.clientY - rect.top) / rect.height) * VIEW_HEIGHT +
-        camera.y,
+      x: clamp(viewX + camera.x, 0, WORLD_WIDTH),
+      y: clamp(viewY + camera.y, 0, WORLD_HEIGHT),
     };
+  }
+
+  private pointerWorld(event: MouseEvent) {
+    return this.clientToWorld(event.clientX, event.clientY);
   }
 
   private onKeyDown = (event: KeyboardEvent) => {
@@ -2595,12 +3249,9 @@ export class GameEngine {
     if (!event.touches.length) return;
     event.preventDefault();
     const touch = event.touches[0];
-    const rect = this.canvas.getBoundingClientRect();
-    const camera = this.getCamera();
-    this.aimX =
-      ((touch.clientX - rect.left) / rect.width) * VIEW_WIDTH + camera.x;
-    this.aimY =
-      ((touch.clientY - rect.top) / rect.height) * VIEW_HEIGHT + camera.y;
+    const point = this.clientToWorld(touch.clientX, touch.clientY);
+    this.aimX = point.x;
+    this.aimY = point.y;
   };
 
   private onContextMenu = (event: MouseEvent) => {

@@ -174,6 +174,7 @@ a { color: inherit; }
   width: 100%;
   height: 100%;
   display: block;
+  object-fit: contain;
 }
 .game-overlay {
   position: absolute;
@@ -809,4 +810,190 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
 }
 .game-shell:fullscreen .ability-dock {
   bottom: 18px;
+}
+
+
+/* Build 006: skill levels, evolutions, clear state and aim correction */
+.upgrade-card .upgrade-detail {
+  display: block;
+  margin-top: 12px;
+  color: #eef7ff;
+  font-size: 11px;
+  line-height: 1.55;
+  font-weight: 800;
+}
+.upgrade-card .upgrade-requirements {
+  display: block;
+  margin-top: 10px;
+  color: #c7ff45;
+  font-size: 9px;
+  line-height: 1.45;
+  font-weight: 800;
+}
+.upgrade-card.rarity-evolution {
+  border-color: rgba(255, 255, 255, .85);
+  background:
+    radial-gradient(circle at 85% 20%, rgba(91, 234, 255, .16), transparent 36%),
+    radial-gradient(circle at 15% 80%, rgba(199, 255, 69, .14), transparent 42%),
+    #10161e;
+  box-shadow: inset 0 0 30px rgba(255,255,255,.04);
+}
+.upgrade-card.rarity-evolution em,
+.upgrade-card.rarity-evolution > span {
+  color: #ffffff;
+}
+.upgrade-card.rarity-evolution:hover {
+  border-color: #ffffff;
+  box-shadow: 0 0 30px rgba(91,234,255,.12);
+}
+
+.skill-rack {
+  border-top: 1px solid #313a46;
+  padding: 13px 16px 15px;
+  background: #080c12;
+}
+.skill-rack-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.skill-rack-head span {
+  color: var(--cyan);
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .14em;
+}
+.skill-rack-head b {
+  color: #7f8b98;
+  font-size: 8px;
+  letter-spacing: .1em;
+}
+.skill-chips {
+  display: flex;
+  gap: 7px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  scrollbar-width: thin;
+}
+.skill-chip {
+  flex: 0 0 auto;
+  min-width: 132px;
+  border: 1px solid #303a47;
+  background: #0c1219;
+  padding: 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.skill-chip span {
+  color: #d7dee6;
+  font-size: 9px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.skill-chip b {
+  color: #7f8a97;
+  font-size: 8px;
+  letter-spacing: .06em;
+}
+.skill-chip.rarity-rare {
+  border-color: #365d6c;
+}
+.skill-chip.rarity-neural {
+  border-color: #566c28;
+}
+.skill-chip.rarity-neural span {
+  color: var(--acid);
+}
+.skill-chip.evolved,
+.skill-chip.rarity-evolution {
+  border-color: rgba(255,255,255,.78);
+  background:
+    linear-gradient(135deg, rgba(91,234,255,.08), rgba(199,255,69,.06)),
+    #0d141b;
+}
+.skill-chip.evolved span,
+.skill-chip.evolved b {
+  color: #ffffff;
+}
+.skill-empty {
+  color: #56616e;
+  font-size: 9px;
+  padding: 5px 0;
+}
+
+.clear-overlay {
+  background:
+    radial-gradient(circle at 50% 42%, rgba(91,234,255,.15), transparent 34%),
+    rgba(4, 7, 10, .9);
+}
+.clear-overlay > p:first-of-type {
+  color: var(--cyan);
+}
+.clear-overlay h2 {
+  color: #ffffff;
+  text-shadow: 0 0 30px rgba(91,234,255,.18);
+}
+.clear-copy {
+  color: var(--acid);
+  font-size: 14px;
+}
+.clear-overlay > button {
+  margin-top: 18px;
+  border: 1px solid var(--cyan);
+  background: var(--cyan);
+  color: #071017;
+  padding: 13px 20px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.game-shell:fullscreen .skill-rack {
+  flex: 0 0 auto;
+  padding: 8px 12px 9px;
+}
+.game-shell:fullscreen .skill-chip {
+  min-width: 116px;
+  padding: 6px 8px;
+}
+
+@media (max-width: 760px) {
+  .upgrade-grid {
+    max-height: 72vh;
+    overflow-y: auto;
+  }
+  .upgrade-grid button {
+    min-height: 118px;
+    padding: 15px;
+  }
+  .skill-rack {
+    padding: 9px 10px 10px;
+  }
+  .skill-chip {
+    min-width: 116px;
+  }
+  .skill-chip span {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 520px) {
+  .upgrade-overlay {
+    padding: 14px;
+  }
+  .upgrade-overlay h2 {
+    font-size: 36px;
+    margin-bottom: 15px;
+  }
+  .upgrade-card .upgrade-detail {
+    font-size: 10px;
+  }
+  .skill-rack-head {
+    margin-bottom: 7px;
+  }
+  .skill-rack-head b {
+    display: none;
+  }
 }

@@ -6,9 +6,10 @@ import {
 } from 'react';
 import { GameEngine } from '../game/GameEngine';
 import type {
+  GameClearSnapshot,
   GameOverSnapshot,
   HudSnapshot,
-  UpgradeKey,
+  SkillKey,
   UpgradeOption,
 } from '../game/types';
 
@@ -38,6 +39,9 @@ const initialHud: HudSnapshot = {
     lightningMaxCooldown: 0,
     xpPickupRadius: 115,
   },
+  skills: [],
+  bossesDefeated: 0,
+  bossesTotal: 3,
   connectome: {
     status: 'idle',
     progress: 0,
@@ -70,6 +74,7 @@ export default function FlySwarmGame() {
   const [hud, setHud] = useState(initialHud);
   const [upgrades, setUpgrades] = useState<UpgradeOption[]>([]);
   const [gameOver, setGameOver] = useState<GameOverSnapshot | null>(null);
+  const [gameClear, setGameClear] = useState<GameClearSnapshot | null>(null);
   const [joystick, setJoystick] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
@@ -79,6 +84,7 @@ export default function FlySwarmGame() {
       onHud: setHud,
       onLevelUp: setUpgrades,
       onGameOver: setGameOver,
+      onGameClear: setGameClear,
     });
     engineRef.current = engine;
 
@@ -96,17 +102,19 @@ export default function FlySwarmGame() {
   const start = () => {
     setStarted(true);
     setGameOver(null);
+    setGameClear(null);
     engineRef.current?.start();
   };
 
   const restart = () => {
     setStarted(true);
     setGameOver(null);
+    setGameClear(null);
     setUpgrades([]);
     engineRef.current?.restart();
   };
 
-  const chooseUpgrade = (key: UpgradeKey) => {
+  const chooseUpgrade = (key: SkillKey) => {
     engineRef.current?.applyUpgrade(key);
     setUpgrades([]);
   };
@@ -202,6 +210,7 @@ export default function FlySwarmGame() {
             <b>{hud.kills} KILLS</b>
             <b>{Math.floor(hud.seconds)}s</b>
             <b>{hud.enemyCount} AGENTS</b>
+            <b>BOSSES {hud.bossesDefeated}/{hud.bossesTotal}</b>
             <b className={`brain-badge ${hud.connectome.status}`}>{brainLabel}</b>
           </div>
         </div>
@@ -247,7 +256,7 @@ export default function FlySwarmGame() {
           {fullscreen ? 'EXIT FULLSCREEN' : 'PLAY FULLSCREEN'}
         </button>
 
-        {started && !gameOver && (
+        {started && !gameOver && !gameClear && (
           <div className="combat-controls">
             <span>MOVE <b>WASD</b></span>
             <span>AIM <b>MOUSE</b></span>
@@ -256,7 +265,7 @@ export default function FlySwarmGame() {
           </div>
         )}
 
-        {started && !gameOver && (
+        {started && !gameOver && !gameClear && (
           <>
             <div
               ref={joystickRef}
@@ -334,12 +343,40 @@ export default function FlySwarmGame() {
                   className={`upgrade-card rarity-${upgrade.rarity.toLowerCase()}`}
                   onClick={() => chooseUpgrade(upgrade.key)}
                 >
-                  <em>{upgrade.rarity}</em>
+                  <em>
+                    {upgrade.rarity}
+                    {upgrade.isEvolution
+                      ? ' · FUSION'
+                      : ` · Lv ${upgrade.level} → ${upgrade.nextLevel}/${upgrade.maxLevel}`}
+                  </em>
                   <span>{upgrade.title}</span>
                   <small>{upgrade.description}</small>
+                  <strong className="upgrade-detail">{upgrade.detail}</strong>
+                  {upgrade.requirements && (
+                    <small className="upgrade-requirements">
+                      MAX: {upgrade.requirements.join(' + ')}
+                    </small>
+                  )}
                 </button>
               ))}
             </div>
+          </div>
+        )}
+
+        {gameClear && (
+          <div className="game-overlay clear-overlay">
+            <span className="fly-icon">🧠⚡</span>
+            <p>CONNECTOME SWARM CLEARED</p>
+            <h2>HUMAN<br/>SURVIVED.</h2>
+            <div className="death-stats">
+              <span><b>{gameClear.bossesDefeated}/3</b> bosses eliminated</span>
+              <span><b>{gameClear.kills}</b> total kills</span>
+              <span><b>{Math.floor(gameClear.seconds)}s</b> clear time</span>
+            </div>
+            <strong className="clear-copy">
+              세 개의 Full-Connectome Boss를 모두 처치했습니다.
+            </strong>
+            <button onClick={restart}>PLAY AGAIN</button>
           </div>
         )}
 
@@ -384,6 +421,34 @@ export default function FlySwarmGame() {
             <b>SOC {pct(hud.swarmGenome.social)}</b>
             <b>SPD {pct(hud.swarmGenome.speed)}</b>
           </div>
+        </div>
+      </div>
+
+      <div className="skill-rack">
+        <div className="skill-rack-head">
+          <span>ACQUIRED SKILLS</span>
+          <b>{hud.skills.length} TYPES</b>
+        </div>
+        <div className="skill-chips">
+          {hud.skills.length ? (
+            hud.skills.map((skill) => (
+              <div
+                key={skill.key}
+                className={`skill-chip rarity-${skill.rarity.toLowerCase()} ${skill.evolved ? 'evolved' : ''}`}
+              >
+                <span>{skill.title}</span>
+                <b>
+                  {skill.evolved
+                    ? 'EVOLVED'
+                    : skill.level >= skill.maxLevel
+                      ? `MAX ${skill.level}/${skill.maxLevel}`
+                      : `Lv ${skill.level}/${skill.maxLevel}`}
+                </b>
+              </div>
+            ))
+          ) : (
+            <span className="skill-empty">아직 획득한 스킬이 없습니다.</span>
+          )}
         </div>
       </div>
 
