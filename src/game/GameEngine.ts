@@ -120,7 +120,7 @@ const upgradeCatalog: UpgradeOption[] = [
   { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력에서 이동/공격 속도 증가', rarity: 'RARE' },
   { key: 'bulletLife', title: 'Long Axon', description: '투사체 생존시간 +30%', rarity: 'COMMON' },
   { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속을 동시에 강화', rarity: 'NEURAL' },
-  { key: 'manualLance', title: 'Voluntary Motor Lance', description: 'SPACE: 마우스 방향으로 강력한 관통 신경탄 발사', rarity: 'NEURAL' },
+  { key: 'manualLance', title: 'Motor Lance', description: '주기적으로 가장 가까운 적에게 강력한 관통 신경탄 자동 발사', rarity: 'NEURAL' },
   { key: 'targetLightning', title: 'Cortical Thunder', description: 'E: 마우스 위치에 직접 낙뢰 지정', rarity: 'NEURAL' },
   { key: 'synapticField', title: 'Synaptic Carpet', description: '주기적으로 조준 방향에 지속 피해 장판 생성', rarity: 'NEURAL' },
   { key: 'meteor', title: 'Glial Meteor', description: '주기적으로 강한 적 위치에 광역 낙하 공격', rarity: 'NEURAL' },
@@ -171,6 +171,8 @@ export class GameEngine {
   private lastMoveY = 0;
   private screenShake = 0;
   private damageFlash = 0;
+  private touchMoveX = 0;
+  private touchMoveY = 0;
 
   private player: Player = this.makePlayer();
   private flies: FlyAgent[] = [];
@@ -204,6 +206,8 @@ export class GameEngine {
     canvas.addEventListener('click', this.onCanvasClick);
     canvas.addEventListener('mousemove', this.onCanvasMove);
     canvas.addEventListener('contextmenu', this.onContextMenu);
+    canvas.addEventListener('touchstart', this.onCanvasTouch, { passive: false });
+    canvas.addEventListener('touchmove', this.onCanvasTouch, { passive: false });
     this.emitHud();
     this.render();
   }
@@ -251,6 +255,8 @@ export class GameEngine {
     this.lastMoveY = 0;
     this.screenShake = 0;
     this.damageFlash = 0;
+    this.touchMoveX = 0;
+    this.touchMoveY = 0;
     this.pausedForUpgrade = false;
     this.gameOver = false;
     this.swarmGenome = {
@@ -391,6 +397,21 @@ export class GameEngine {
     this.pausedForUpgrade = false;
   }
 
+  setTouchMove(x: number, y: number) {
+    const length = Math.hypot(x, y);
+    if (length > 1) {
+      this.touchMoveX = x / length;
+      this.touchMoveY = y / length;
+    } else {
+      this.touchMoveX = x;
+      this.touchMoveY = y;
+    }
+  }
+
+  castLightningAtAim() {
+    this.castTargetLightning();
+  }
+
   destroy() {
     this.running = false;
     cancelAnimationFrame(this.raf);
@@ -400,6 +421,8 @@ export class GameEngine {
     this.canvas.removeEventListener('click', this.onCanvasClick);
     this.canvas.removeEventListener('mousemove', this.onCanvasMove);
     this.canvas.removeEventListener('contextmenu', this.onContextMenu);
+    this.canvas.removeEventListener('touchstart', this.onCanvasTouch);
+    this.canvas.removeEventListener('touchmove', this.onCanvasTouch);
   }
 
   private makePlayer(): Player {
@@ -482,6 +505,12 @@ export class GameEngine {
       0,
       this.player.manualLanceCooldown - dt,
     );
+    if (
+      this.player.manualLanceLevel > 0 &&
+      this.player.manualLanceCooldown <= 0
+    ) {
+      this.castAutoLance();
+    }
     this.player.lightningCooldown = Math.max(
       0,
       this.player.lightningCooldown - dt,
@@ -546,6 +575,11 @@ export class GameEngine {
     if (this.keys.has('ArrowDown') || this.keys.has('KeyS')) dy += 1;
     if (this.keys.has('ArrowLeft') || this.keys.has('KeyA')) dx -= 1;
     if (this.keys.has('ArrowRight') || this.keys.has('KeyD')) dx += 1;
+
+    if (Math.abs(this.touchMoveX) > 0.02 || Math.abs(this.touchMoveY) > 0.02) {
+      dx = this.touchMoveX;
+      dy = this.touchMoveY;
+    }
 
     const lowHpAdrenaline =
       this.player.hp / this.player.maxHp < 0.35
@@ -1551,7 +1585,7 @@ export class GameEngine {
     return normalize(dx, dy);
   }
 
-  private castManualLance() {
+  private castAutoLance() {
     if (
       this.player.manualLanceLevel <= 0 ||
       this.player.manualLanceCooldown > 0 ||
@@ -1561,9 +1595,37 @@ export class GameEngine {
       return;
     }
 
+    let targetX = this.aimX;
+    let targetY = this.aimY;
+    let bestDistance = Infinity;
+
+    if (this.boss) {
+      bestDistance = Math.hypot(
+        this.boss.x - this.player.x,
+        this.boss.y - this.player.y,
+      );
+      targetX = this.boss.x;
+      targetY = this.boss.y;
+    }
+
+    for (const fly of this.flies) {
+      if (fly.hp <= 0) continue;
+      const distance = Math.hypot(
+        fly.x - this.player.x,
+        fly.y - this.player.y,
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        targetX = fly.x;
+        targetY = fly.y;
+      }
+    }
+
+    if (!Number.isFinite(bestDistance)) return;
+
     const level = this.player.manualLanceLevel;
-    const aim = this.getAimDirection();
-    this.player.manualLanceCooldown = Math.max(0.28, 0.92 - level * 0.1);
+    const aim = normalize(targetX - this.player.x, targetY - this.player.y);
+    this.player.manualLanceCooldown = Math.max(0.38, 1.22 - level * 0.12);
     this.bullets.push({
       x: this.player.x + aim.x * 16,
       y: this.player.y + aim.y * 16,
@@ -1571,14 +1633,18 @@ export class GameEngine {
       vy: aim.y * (860 + level * 55),
       radius: 7 + level * 0.8,
       life: 1.05 + level * 0.08,
-      damage: this.player.damage * (2.2 + level * 0.52),
+      damage: this.player.damage * (2.05 + level * 0.46),
       pierce: 5 + level * 2,
       hit: new Set<number>(),
       critical: false,
       style: 'LANCE',
     });
-    this.spawnParticles(this.player.x, this.player.y, '#ffffff', 14, 105);
-    this.screenShake = Math.max(this.screenShake, 2.5);
+    this.spawnParticles(this.player.x, this.player.y, '#ffffff', 12, 100);
+    this.screenShake = Math.max(this.screenShake, 2);
+  }
+
+  private getLightningCooldownDuration() {
+    return Math.max(1.8, 5.7 - this.player.lightningLevel * 0.62);
   }
 
   private castTargetLightning() {
@@ -1596,7 +1662,7 @@ export class GameEngine {
     const y = clamp(this.aimY, 25, WORLD_HEIGHT - 25);
     const radius = 88 + level * 13;
     const damage = 72 + level * 34 + this.player.damage * 0.9;
-    this.player.lightningCooldown = Math.max(1.8, 5.7 - level * 0.62);
+    this.player.lightningCooldown = this.getLightningCooldownDuration();
     this.damageCircle(x, y, radius, damage);
     this.lightningFx.push({
       x1: x + randomRange(-35, 35),
@@ -1744,10 +1810,19 @@ export class GameEngine {
     for (const orb of this.orbs) {
       const dx = this.player.x - orb.x;
       const dy = this.player.y - orb.y;
-      const d = Math.hypot(dx, dy) || 1;
+      const d = Math.hypot(dx, dy);
 
-      if (d < this.player.magnet) {
-        const pull = 680 * (1 - d / this.player.magnet) + 130;
+      if (orb.value > 0 && d <= this.player.magnet) {
+        this.player.xp += orb.value * this.player.xpGain;
+        orb.value = 0;
+        continue;
+      }
+
+      if (d < this.player.magnet * 1.65 && d > 0) {
+        const pull =
+          420 *
+            (1 - d / (this.player.magnet * 1.65)) +
+          90;
         orb.vx += (dx / d) * pull * dt;
         orb.vy += (dy / d) * pull * dt;
       }
@@ -1756,11 +1831,6 @@ export class GameEngine {
       orb.vy *= 0.985;
       orb.x += orb.vx * dt;
       orb.y += orb.vy * dt;
-
-      if (d < this.player.radius + 10 && orb.value > 0) {
-        this.player.xp += orb.value * this.player.xpGain;
-        orb.value = 0;
-      }
     }
 
     this.orbs = this.orbs.filter((orb) => orb.value > 0);
@@ -1933,6 +2003,16 @@ export class GameEngine {
       swarmGenome: copyGenome(this.swarmGenome),
       selected,
       connectome,
+      abilities: {
+        autoLanceLevel: this.player.manualLanceLevel,
+        lightningLevel: this.player.lightningLevel,
+        lightningCooldown: this.player.lightningCooldown,
+        lightningMaxCooldown:
+          this.player.lightningLevel > 0
+            ? this.getLightningCooldownDuration()
+            : 0,
+        xpPickupRadius: this.player.magnet,
+      },
       boss: this.boss
         ? {
             active: true,
@@ -1991,24 +2071,6 @@ export class GameEngine {
       ctx.fillRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
     }
 
-    if (this.player.manualLanceLevel > 0 || this.player.lightningLevel > 0) {
-      ctx.save();
-      ctx.font = '800 11px Inter, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillStyle = 'rgba(7,10,14,.78)';
-      ctx.fillRect(14, VIEW_HEIGHT - 52, 360, 38);
-      ctx.fillStyle = '#dce6ef';
-      const lance =
-        this.player.manualLanceLevel > 0
-          ? `SPACE LANCE ${this.player.manualLanceCooldown <= 0 ? 'READY' : this.player.manualLanceCooldown.toFixed(1) + 's'}`
-          : '';
-      const thunder =
-        this.player.lightningLevel > 0
-          ? `E / RMB THUNDER ${this.player.lightningCooldown <= 0 ? 'READY' : this.player.lightningCooldown.toFixed(1) + 's'}`
-          : '';
-      ctx.fillText([lance, thunder].filter(Boolean).join('   ·   '), 26, VIEW_HEIGHT - 28);
-      ctx.restore();
-    }
 
     if (this.evolutionBanner > 0) {
       ctx.save();
@@ -2437,7 +2499,6 @@ export class GameEngine {
 
   private drawAim() {
     if (
-      this.player.manualLanceLevel <= 0 &&
       this.player.lightningLevel <= 0
     ) {
       return;
@@ -2509,14 +2570,10 @@ export class GameEngine {
       'ArrowDown',
       'ArrowLeft',
       'ArrowRight',
-      'Space',
       'KeyE',
     ];
     if (block.includes(event.code)) event.preventDefault();
 
-    if (!event.repeat && event.code === 'Space') {
-      this.castManualLance();
-    }
     if (!event.repeat && event.code === 'KeyE') {
       this.castTargetLightning();
     }
@@ -2532,6 +2589,18 @@ export class GameEngine {
     const point = this.pointerWorld(event);
     this.aimX = point.x;
     this.aimY = point.y;
+  };
+
+  private onCanvasTouch = (event: TouchEvent) => {
+    if (!event.touches.length) return;
+    event.preventDefault();
+    const touch = event.touches[0];
+    const rect = this.canvas.getBoundingClientRect();
+    const camera = this.getCamera();
+    this.aimX =
+      ((touch.clientX - rect.left) / rect.width) * VIEW_WIDTH + camera.x;
+    this.aimY =
+      ((touch.clientY - rect.top) / rect.height) * VIEW_HEIGHT + camera.y;
   };
 
   private onContextMenu = (event: MouseEvent) => {
