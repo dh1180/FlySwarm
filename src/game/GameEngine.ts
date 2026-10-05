@@ -475,6 +475,16 @@ export class GameEngine {
     this.evolutionBanner = Math.max(0, this.evolutionBanner - dt);
     this.novaFlash = Math.max(0, this.novaFlash - dt);
     this.bossPulseFlash = Math.max(0, this.bossPulseFlash - dt);
+    this.screenShake = Math.max(0, this.screenShake - dt * 30);
+    this.damageFlash = Math.max(0, this.damageFlash - dt);
+    this.player.manualLanceCooldown = Math.max(
+      0,
+      this.player.manualLanceCooldown - dt,
+    );
+    this.player.lightningCooldown = Math.max(
+      0,
+      this.player.lightningCooldown - dt,
+    );
 
     const nextWave = Math.floor(this.time / WAVE_SECONDS) + 1;
     if (nextWave > this.wave) {
@@ -496,14 +506,21 @@ export class GameEngine {
     this.spatial.rebuild(this.flies);
     this.updateFlies(dt);
     this.updateBoss(dt);
+    this.updateEnemyShots(dt);
     this.spatial.rebuild(this.flies);
     this.updateShooting();
     this.updateBullets(dt);
     this.updateAbilities(dt);
+    this.updateDamageFields(dt);
     this.updateOrbs(dt);
+    this.updateVfx(dt);
 
     this.flies = this.flies.filter((fly) => fly.hp > 0);
     this.bullets = this.bullets.filter((bullet) => bullet.life > 0);
+    this.enemyShots = this.enemyShots.filter((shot) => shot.life > 0);
+    this.damageFields = this.damageFields.filter((field) => field.life > 0);
+    this.particles = this.particles.filter((particle) => particle.life > 0);
+    this.lightningFx = this.lightningFx.filter((fx) => fx.life > 0);
 
     if (this.player.hp <= 0) {
       this.player.hp = 0;
@@ -536,6 +553,8 @@ export class GameEngine {
 
     if (dx || dy) {
       const n = normalize(dx, dy);
+      this.lastMoveX = n.x;
+      this.lastMoveY = n.y;
       this.player.x += n.x * this.player.speed * lowHpAdrenaline * dt;
       this.player.y += n.y * this.player.speed * lowHpAdrenaline * dt;
     }
@@ -1110,6 +1129,7 @@ export class GameEngine {
         pierce: this.player.pierce,
         hit: new Set<number>(),
         critical,
+        style: 'NORMAL',
       });
     }
   }
@@ -1129,6 +1149,13 @@ export class GameEngine {
       ) {
         bullet.hit.add(BOSS_HIT_ID);
         this.damageBoss(bullet.damage * this.player.bossDamage);
+        this.spawnParticles(
+          bullet.x,
+          bullet.y,
+          bullet.style === 'LANCE' ? '#ffffff' : '#c7ff45',
+          bullet.style === 'LANCE' ? 12 : 6,
+          95,
+        );
         const push = normalize(bullet.vx, bullet.vy);
         if (this.boss) {
           this.boss.vx += push.x * this.player.knockback * 0.15;
@@ -1142,7 +1169,7 @@ export class GameEngine {
         }
       }
 
-      const candidates = this.spatial.query(bullet.x, bullet.y, 26);
+      const candidates = this.spatial.query(bullet.x, bullet.y, 30);
       for (const fly of candidates) {
         if (fly.hp <= 0 || bullet.hit.has(fly.id)) continue;
         const d = Math.hypot(fly.x - bullet.x, fly.y - bullet.y);
@@ -1150,9 +1177,26 @@ export class GameEngine {
 
         bullet.hit.add(fly.id);
         fly.hp -= bullet.damage;
+
+        if (
+          this.player.executeLevel > 0 &&
+          fly.hp > 0 &&
+          fly.hp / fly.maxHp <
+            0.12 + this.player.executeLevel * 0.035
+        ) {
+          fly.hp -= bullet.damage * (0.42 + this.player.executeLevel * 0.12);
+        }
+
         const push = normalize(bullet.vx, bullet.vy);
         fly.x += push.x * this.player.knockback;
         fly.y += push.y * this.player.knockback;
+        this.spawnParticles(
+          bullet.x,
+          bullet.y,
+          bullet.style === 'LANCE' ? '#ffffff' : bullet.critical ? '#ffcf57' : '#5beaff',
+          bullet.style === 'LANCE' ? 11 : 5,
+          bullet.style === 'LANCE' ? 110 : 65,
+        );
 
         if (fly.hp <= 0) this.killFly(fly);
 
@@ -1180,7 +1224,46 @@ export class GameEngine {
           if (chainTarget) {
             bullet.hit.add(chainTarget.id);
             chainTarget.hp -= bullet.damage * this.player.chainDamage;
+            this.lightningFx.push({
+              x1: fly.x,
+              y1: fly.y,
+              x2: chainTarget.x,
+              y2: chainTarget.y,
+              life: 0.16,
+              maxLife: 0.16,
+              color: '#5beaff',
+            });
             if (chainTarget.hp <= 0) this.killFly(chainTarget);
+          }
+        }
+
+        if (
+          this.player.ricochetLevel > 0 &&
+          Math.random() < 0.12 + this.player.ricochetLevel * 0.06
+        ) {
+          const target = this.findNearestFly(
+            fly.x,
+            fly.y,
+            230,
+            new Set([...bullet.hit, fly.id]),
+          );
+          if (target) {
+            const angle = Math.atan2(target.y - fly.y, target.x - fly.x);
+            this.bullets.push({
+              x: fly.x,
+              y: fly.y,
+              vx: Math.cos(angle) * this.player.bulletSpeed * 0.9,
+              vy: Math.sin(angle) * this.player.bulletSpeed * 0.9,
+              radius: Math.max(3.5, bullet.radius * 0.82),
+              life: 0.8,
+              damage:
+                bullet.damage *
+                (0.35 + this.player.ricochetLevel * 0.08),
+              pierce: 0,
+              hit: new Set<number>([fly.id]),
+              critical: false,
+              style: 'NORMAL',
+            });
           }
         }
 
@@ -1262,30 +1345,320 @@ export class GameEngine {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
         const radius = 220;
+        this.damageCircle(
+          this.player.x,
+          this.player.y,
+          radius,
+          this.player.novaDamage,
+        );
+        this.spawnParticles(
+          this.player.x,
+          this.player.y,
+          '#5beaff',
+          28,
+          180,
+        );
+        this.screenShake = Math.max(this.screenShake, 5);
+      }
+    }
 
-        for (const fly of this.flies) {
-          if (
-            fly.hp > 0 &&
-            Math.hypot(fly.x - this.player.x, fly.y - this.player.y) <= radius
-          ) {
-            fly.hp -= this.player.novaDamage;
-            if (fly.hp <= 0) this.killFly(fly);
-          }
-        }
+    if (this.player.fieldLevel > 0) {
+      this.player.fieldTimer += dt;
+      const interval = Math.max(2.8, 5.4 - this.player.fieldLevel * 0.45);
+      if (this.player.fieldTimer >= interval) {
+        this.player.fieldTimer = 0;
+        const aim = this.getAimDirection();
+        const x = clamp(
+          this.player.x + aim.x * 135,
+          55,
+          WORLD_WIDTH - 55,
+        );
+        const y = clamp(
+          this.player.y + aim.y * 135,
+          55,
+          WORLD_HEIGHT - 55,
+        );
+        this.damageFields.push({
+          x,
+          y,
+          radius: 82 + this.player.fieldLevel * 10,
+          life: 4.5 + this.player.fieldLevel * 0.45,
+          maxLife: 4.5 + this.player.fieldLevel * 0.45,
+          damage: 14 + this.player.fieldLevel * 7,
+        });
+        this.spawnParticles(x, y, '#9cff47', 18, 90);
+      }
+    }
 
+    if (this.player.meteorLevel > 0) {
+      this.player.meteorTimer += dt;
+      const interval = Math.max(3.8, 7.3 - this.player.meteorLevel * 0.55);
+      if (this.player.meteorTimer >= interval) {
+        this.player.meteorTimer = 0;
+        this.triggerMeteor();
+      }
+    }
+  }
+
+  private fireEnemyShot(
+    x: number,
+    y: number,
+    targetX: number,
+    targetY: number,
+    speed: number,
+    damage: number,
+    color: string,
+  ) {
+    const direction = normalize(targetX - x, targetY - y);
+    this.enemyShots.push({
+      x,
+      y,
+      vx: direction.x * speed,
+      vy: direction.y * speed,
+      radius: 5,
+      damage,
+      life: 4.2,
+      color,
+    });
+  }
+
+  private updateEnemyShots(dt: number) {
+    for (const shot of this.enemyShots) {
+      shot.x += shot.vx * dt;
+      shot.y += shot.vy * dt;
+      shot.life -= dt;
+      if (shot.life <= 0) continue;
+
+      if (
+        Math.hypot(shot.x - this.player.x, shot.y - this.player.y) <=
+        shot.radius + this.player.radius
+      ) {
+        this.damagePlayerFromBoss(shot.damage);
+        this.spawnParticles(shot.x, shot.y, shot.color, 10, 95);
+        this.screenShake = Math.max(this.screenShake, 4);
+        shot.life = 0;
+      }
+    }
+  }
+
+  private updateDamageFields(dt: number) {
+    for (const field of this.damageFields) {
+      field.life -= dt;
+      if (field.life <= 0) continue;
+
+      for (const fly of this.spatial.query(
+        field.x,
+        field.y,
+        field.radius,
+      )) {
+        if (fly.hp <= 0) continue;
         if (
-          this.boss &&
-          Math.hypot(
-            this.boss.x - this.player.x,
-            this.boss.y - this.player.y,
-          ) <= radius + this.boss.radius
+          Math.hypot(fly.x - field.x, fly.y - field.y) <=
+          field.radius + fly.radius
         ) {
-          this.damageBoss(
-            this.player.novaDamage * this.player.bossDamage,
-          );
+          fly.hp -= field.damage * dt;
+          if (fly.hp <= 0) this.killFly(fly);
+        }
+      }
+
+      if (
+        this.boss &&
+        Math.hypot(this.boss.x - field.x, this.boss.y - field.y) <=
+          field.radius + this.boss.radius
+      ) {
+        this.damageBoss(
+          field.damage * 0.72 * dt * this.player.bossDamage,
+        );
+      }
+    }
+  }
+
+  private updateVfx(dt: number) {
+    for (const particle of this.particles) {
+      particle.life -= dt;
+      particle.x += particle.vx * dt;
+      particle.y += particle.vy * dt;
+      particle.vx *= 0.96;
+      particle.vy *= 0.96;
+    }
+    for (const fx of this.lightningFx) {
+      fx.life -= dt;
+    }
+  }
+
+  private spawnParticles(
+    x: number,
+    y: number,
+    color: string,
+    count: number,
+    speed: number,
+  ) {
+    const room = Math.max(0, 520 - this.particles.length);
+    const actualCount = Math.min(count, room);
+    for (let i = 0; i < actualCount; i += 1) {
+      const angle = Math.random() * TAU;
+      const velocity = randomRange(speed * 0.25, speed);
+      const life = randomRange(0.18, 0.52);
+      this.particles.push({
+        x,
+        y,
+        vx: Math.cos(angle) * velocity,
+        vy: Math.sin(angle) * velocity,
+        life,
+        maxLife: life,
+        size: randomRange(1.5, 4.8),
+        color,
+      });
+    }
+  }
+
+  private damageCircle(
+    x: number,
+    y: number,
+    radius: number,
+    damage: number,
+  ) {
+    for (const fly of this.flies) {
+      if (
+        fly.hp > 0 &&
+        Math.hypot(fly.x - x, fly.y - y) <= radius + fly.radius
+      ) {
+        fly.hp -= damage;
+        if (fly.hp <= 0) this.killFly(fly);
+      }
+    }
+
+    if (
+      this.boss &&
+      Math.hypot(this.boss.x - x, this.boss.y - y) <=
+        radius + this.boss.radius
+    ) {
+      this.damageBoss(damage * this.player.bossDamage);
+    }
+  }
+
+  private getAimDirection() {
+    const dx = this.aimX - this.player.x;
+    const dy = this.aimY - this.player.y;
+    if (Math.hypot(dx, dy) < 8) {
+      return normalize(this.lastMoveX, this.lastMoveY);
+    }
+    return normalize(dx, dy);
+  }
+
+  private castManualLance() {
+    if (
+      this.player.manualLanceLevel <= 0 ||
+      this.player.manualLanceCooldown > 0 ||
+      this.pausedForUpgrade ||
+      this.gameOver
+    ) {
+      return;
+    }
+
+    const level = this.player.manualLanceLevel;
+    const aim = this.getAimDirection();
+    this.player.manualLanceCooldown = Math.max(0.28, 0.92 - level * 0.1);
+    this.bullets.push({
+      x: this.player.x + aim.x * 16,
+      y: this.player.y + aim.y * 16,
+      vx: aim.x * (860 + level * 55),
+      vy: aim.y * (860 + level * 55),
+      radius: 7 + level * 0.8,
+      life: 1.05 + level * 0.08,
+      damage: this.player.damage * (2.2 + level * 0.52),
+      pierce: 5 + level * 2,
+      hit: new Set<number>(),
+      critical: false,
+      style: 'LANCE',
+    });
+    this.spawnParticles(this.player.x, this.player.y, '#ffffff', 14, 105);
+    this.screenShake = Math.max(this.screenShake, 2.5);
+  }
+
+  private castTargetLightning() {
+    if (
+      this.player.lightningLevel <= 0 ||
+      this.player.lightningCooldown > 0 ||
+      this.pausedForUpgrade ||
+      this.gameOver
+    ) {
+      return;
+    }
+
+    const level = this.player.lightningLevel;
+    const x = clamp(this.aimX, 25, WORLD_WIDTH - 25);
+    const y = clamp(this.aimY, 25, WORLD_HEIGHT - 25);
+    const radius = 88 + level * 13;
+    const damage = 72 + level * 34 + this.player.damage * 0.9;
+    this.player.lightningCooldown = Math.max(1.8, 5.7 - level * 0.62);
+    this.damageCircle(x, y, radius, damage);
+    this.lightningFx.push({
+      x1: x + randomRange(-35, 35),
+      y1: Math.max(0, y - 520),
+      x2: x,
+      y2: y,
+      life: 0.32,
+      maxLife: 0.32,
+      color: '#d9f7ff',
+    });
+    this.spawnParticles(x, y, '#d9f7ff', 34, 210);
+    this.screenShake = Math.max(this.screenShake, 11);
+  }
+
+  private triggerMeteor() {
+    let x = this.aimX;
+    let y = this.aimY;
+    let bestScore = Infinity;
+
+    if (this.boss) {
+      x = this.boss.x;
+      y = this.boss.y;
+    } else {
+      for (const fly of this.flies) {
+        if (fly.hp <= 0) continue;
+        const score = Math.hypot(fly.x - this.player.x, fly.y - this.player.y);
+        if (score < bestScore) {
+          bestScore = score;
+          x = fly.x;
+          y = fly.y;
         }
       }
     }
+
+    const level = this.player.meteorLevel;
+    const radius = 112 + level * 12;
+    this.damageCircle(x, y, radius, 66 + level * 30);
+    this.lightningFx.push({
+      x1: x - 150,
+      y1: y - 420,
+      x2: x,
+      y2: y,
+      life: 0.27,
+      maxLife: 0.27,
+      color: '#ffcf57',
+    });
+    this.spawnParticles(x, y, '#ffcf57', 30, 185);
+    this.screenShake = Math.max(this.screenShake, 8);
+  }
+
+  private findNearestFly(
+    x: number,
+    y: number,
+    radius: number,
+    exclude = new Set<number>(),
+  ) {
+    let best: FlyAgent | null = null;
+    let bestDistance = radius;
+    for (const fly of this.spatial.query(x, y, radius)) {
+      if (fly.hp <= 0 || exclude.has(fly.id)) continue;
+      const distance = Math.hypot(fly.x - x, fly.y - y);
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        best = fly;
+      }
+    }
+    return best;
   }
 
   private killFly(fly: FlyAgent) {
