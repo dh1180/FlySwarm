@@ -5,7 +5,7 @@
 FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라우저 게임 프로젝트입니다.
 
 - 일반 초파리 수백 마리: **5종 전투 아키타입 + Utility AI + Steering Behavior**
-- 보스: **3종 phenotype + FlyWire FAFB v783 전체 source connectome + LIF dynamics**
+- 보스: **5단계 phenotype + FlyWire FAFB v783 전체 source connectome + LIF dynamics**
 
 ## 🎮 현재 구현
 
@@ -13,7 +13,7 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - 가장 가까운 적 자동 공격
 - 경험치 Orb / 레벨업
 - XP Orb가 Magnet 반경 안에 들어오면 즉시 획득
-- 31종 레벨업 Mutation + 3종 Evolution Skill
+- 30종 선택 가능한 Mutation + 15종 Synaptic Fusion
 - 웨이브 증가 및 군집 진화
 - 초파리 개체별 personality genome
 - Spatial Hash 기반 근접 탐색
@@ -23,7 +23,7 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - 일반 초파리 Agent Inspector
 - 획득 스킬 종류 / 현재 레벨 / MAX 상태 HUD
 - Max Skill 조합 기반 Evolution/Fusion
-- 3종 Full-Connectome Boss 전부 처치 시 Game Clear
+- 5단계 Full-Connectome Boss 전부 처치 시 Game Clear
 - Game Over / Restart / Clear
 
 ## 🧠 일반 초파리 AI
@@ -143,8 +143,10 @@ Boss body controller
 몸체 파라미터와 공격 phenotype은 다릅니다.
 
 - **NEURAL HUNTER** — 빠른 이동과 집중 3연발
-- **STORM BRAIN** — 넓은 neural pulse와 방사형 탄막
+- **STORM BRAIN** — 넓은 neural pulse, 방사형 탄막, 지면 방전
 - **SWARM QUEEN** — 높은 체력과 Darter / Spitter 소환
+- **GLIAL TITAN** — 대형 이중속도 탄막과 삼중 글리아 방전
+- **CONNECTOME APEX** — 방사 탄막, 5연 조준탄, 다중 방전, 특수몹 소환을 결합한 최종 보스
 
 즉 보스별 차이는 별도의 추적 AI를 추가한 것이 아니라,
 동일한 connectome-derived locomotion 위에 게임용 공격 phenotype을 분리한 구조입니다.
@@ -223,7 +225,7 @@ Main Game Thread
 - Long Axon — longer projectile lifetime
 - Neural Overclock — damage / fire rate / move speed
 - Axonal Spike — 가장 가까운 적에게 주기적으로 자동 발사되는 관통 신경 스파이크
-- Glial Matrix — 조준 방향에 주기적 지속 피해 미세환경
+- Glial Matrix — 가장 가까운 적 중심에 주기적 지속 피해 미세환경
 - Calcium Cascade — 강한 적 위치에서 주기적 칼슘 신호 폭주
 - Recurrent Circuit — 적중 시 추가 투사체 ricochet
 - Apoptosis Trigger — 저체력 적 추가 처형 피해
@@ -316,34 +318,47 @@ Fusion은 단순 이름 변경이 아니라 원본 두 공격을 함께 증폭�
 
 ## 🏁 Clear / Difficulty
 
-한 판의 최종 목표는 서로 다른 Full-Connectome Boss 세 종류를 모두 처치하는 것입니다.
+한 판의 최종 목표는 5단계 Full-Connectome Boss를 순서대로 모두 처치하는 것입니다.
 
 ```text
-NEURAL HUNTER
-      ↓
-STORM BRAIN
-      ↓
-SWARM QUEEN
-      ↓
+WAVE 3  · NEURAL HUNTER
+        ↓
+WAVE 5  · STORM BRAIN
+        ↓
+WAVE 7  · SWARM QUEEN
+        ↓
+WAVE 9  · GLIAL TITAN
+        ↓
+WAVE 11 · CONNECTOME APEX
+        ↓
 GAME CLEAR
 ```
 
-현재 밸런스는 30종 기본 스킬과 15종 Fusion 성장을 고려해 조정했습니다.
+보스는 등장 단계가 높아질수록 같은 Full-Connectome 이동 정책 위에서 전투 파라미터가 누적 강화됩니다.
 
-- Wave 주기: 28초 → 32초
-- 초반 Enemy Cap 및 Spawn 증가량 완화
-- 일반 적 HP 증가량 완화
-- Spitter / Bomber 피해량 완화
-- Boss HP / Contact / Pulse / Projectile Scaling 완화
-- BRUTE / SPITTER / BOMBER는 더 많은 XP 지급
-- Boss 처치 XP 보상 증가
-- 후반 레벨업 XP 요구량 완화
+- Stage마다 HP 약 +28%
+- Stage마다 공격 피해 +16%
+- Stage마다 이동 Scale +6.5%
+- Stage가 높을수록 Special Cooldown 단축
+- 후반 Stage일수록 Boss 처치 XP 보상 증가
+
+일반 웨이브도 이전 빌드보다 어렵게 조정했습니다.
+
+- Wave 주기: 32초 → 30초
+- Enemy Cap과 Wave당 증가량 상향
+- Spawn Interval 단축
+- 특수몹 출현 시점 앞당김 및 비율 증가
+- 일반몹 HP / 이동속도 / 접촉 피해 상향
+- Spitter 탄속 / 피해 상향
+- Bomber 폭발 피해 상향
+- Boss가 활성화되어도 일반몹 감소폭을 줄여 동시 압박 증가
+
 
 ## ✨ Combat VFX / Controls
 
 - Mouse / touch world-space aiming with fullscreen letterbox correction
 - Axonal Spike: 획득 후 가장 가까운 적에게 자동 주기 발사
-- Glial Matrix: mouse / touch 방향을 참고해 자동 생성
+- Glial Matrix: Boss와 일반몹을 함께 비교해 가장 가까운 적 중심에 자동 생성
 - 모바일: 좌측 가상 조이스틱 이동
 - 수동 E / 우클릭 낙뢰 스킬 제거
 - 잡몹 종류별 색상 / 크기 / glow 차별화
