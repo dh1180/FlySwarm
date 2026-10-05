@@ -106,6 +106,7 @@ type BossStrike = {
   maxTimer: number;
   radius: number;
   damage: number;
+  color: string;
 };
 
 type RewardChest = {
@@ -1289,20 +1290,62 @@ export class GameEngine {
     }
   }
 
+  private getBossColor(kind: BossKind) {
+    return kind === 'NEURAL_HUNTER'
+      ? '#ffcf57'
+      : kind === 'STORM_BRAIN'
+        ? '#b678ff'
+        : kind === 'SWARM_QUEEN'
+          ? '#c7ff45'
+          : kind === 'GLIAL_TITAN'
+            ? '#55ffc7'
+            : '#ff5b63';
+  }
+
+  private getBossPulseRadius(boss: Boss) {
+    const base =
+      boss.kind === 'STORM_BRAIN'
+        ? 255
+        : boss.kind === 'GLIAL_TITAN'
+          ? 292
+          : boss.kind === 'CONNECTOME_APEX'
+            ? 275
+            : boss.kind === 'SWARM_QUEEN'
+              ? 225
+              : 210;
+    return base + (boss.stage - 1) * 8;
+  }
+
   private spawnBoss() {
-    const kinds: BossKind[] = ['NEURAL_HUNTER', 'STORM_BRAIN', 'SWARM_QUEEN'];
-    const kind = kinds[this.bossIndex % kinds.length];
+    const kinds: BossKind[] = [
+      'NEURAL_HUNTER',
+      'STORM_BRAIN',
+      'SWARM_QUEEN',
+      'GLIAL_TITAN',
+      'CONNECTOME_APEX',
+    ];
+    const stage = Math.min(5, this.bossIndex + 1);
+    const kind = kinds[stage - 1];
     this.bossIndex += 1;
 
     const config =
       kind === 'NEURAL_HUNTER'
-        ? { name: 'NEURAL HUNTER', hp: 0.92, radius: 31, special: 2.6 }
+        ? { name: 'NEURAL HUNTER', hp: 0.96, radius: 31, special: 2.55 }
         : kind === 'STORM_BRAIN'
-          ? { name: 'STORM BRAIN', hp: 1.08, radius: 36, special: 3.1 }
-          : { name: 'SWARM QUEEN', hp: 1.36, radius: 43, special: 4.6 };
+          ? { name: 'STORM BRAIN', hp: 1.12, radius: 36, special: 2.95 }
+          : kind === 'SWARM_QUEEN'
+            ? { name: 'SWARM QUEEN', hp: 1.34, radius: 43, special: 4.15 }
+            : kind === 'GLIAL_TITAN'
+              ? { name: 'GLIAL TITAN', hp: 1.56, radius: 47, special: 3.55 }
+              : { name: 'CONNECTOME APEX', hp: 1.82, radius: 51, special: 2.7 };
 
-    const maxHp = (980 + this.wave * 285) * config.hp;
+    const hpScale = 1 + (stage - 1) * 0.28;
+    const damageScale = 1 + (stage - 1) * 0.16;
+    const speedScale = 1 + (stage - 1) * 0.065;
+    const cooldownScale = Math.max(0.68, 1 - (stage - 1) * 0.07);
+    const maxHp = (1120 + this.wave * 330) * config.hp * hpScale;
     const camera = this.getCamera();
+
     this.boss = {
       kind,
       name: config.name,
@@ -1314,16 +1357,36 @@ export class GameEngine {
       hp: maxHp,
       maxHp,
       heading: Math.PI / 2,
-      pulseCooldown: 1.4,
-      specialCooldown: config.special,
+      pulseCooldown: 1.25 * cooldownScale,
+      specialCooldown: config.special * cooldownScale,
+      stage,
+      damageScale,
+      speedScale,
+      cooldownScale,
     };
+
     this.bossBrainTimer = 0;
     this.bossPolicyTurn = 0;
     this.bossPolicyDrive = 0;
     this.bossRewardBuffer = 0;
     this.bossPenaltyBuffer = 0;
-    this.screenShake = Math.max(this.screenShake, 7);
-    this.spawnParticles(this.boss.x, this.boss.y, '#c7ff45', 30, 145);
+    this.screenShake = Math.max(this.screenShake, 7 + stage * 1.2);
+    this.spawnParticles(
+      this.boss.x,
+      this.boss.y,
+      this.getBossColor(kind),
+      28 + stage * 5,
+      140 + stage * 12,
+    );
+    this.spawnRing(
+      this.boss.x,
+      this.boss.y,
+      20,
+      120 + stage * 18,
+      this.getBossColor(kind),
+      0.65,
+      5 + stage,
+    );
     this.callbacks.onSound('bossSpawn');
     this.brain.reset();
   }
