@@ -134,9 +134,6 @@ export default function FlySwarmGame() {
             <b>{hud.enemyCount} AGENTS</b>
             <b className={`brain-badge ${hud.connectome.status}`}>{brainLabel}</b>
           </div>
-          <button className="fullscreen-button" onClick={toggleFullscreen}>
-            {fullscreen ? 'EXIT FULLSCREEN' : 'FULLSCREEN'}
-          </button>
         </div>
       </div>
 
@@ -164,6 +161,14 @@ export default function FlySwarmGame() {
 
       <div className="canvas-wrap">
         <canvas ref={canvasRef} aria-label="FlySwarm game canvas" />
+        <button
+          className="fullscreen-fab"
+          onClick={toggleFullscreen}
+          aria-label={fullscreen ? '전체화면 종료' : '전체화면으로 플레이'}
+        >
+          <span>{fullscreen ? '✕' : '⛶'}</span>
+          {fullscreen ? 'EXIT FULLSCREEN' : 'PLAY FULLSCREEN'}
+        </button>
 
         {!started && (
           <div className="game-overlay intro-overlay">
