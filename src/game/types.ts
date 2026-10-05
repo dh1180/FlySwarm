@@ -36,6 +36,7 @@ export type Bullet = {
   pierce: number;
   hit: Set<number>;
   critical: boolean;
+  style?: 'NORMAL' | 'LANCE';
 };
 
 export type Orb = {
