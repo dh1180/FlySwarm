@@ -2552,6 +2552,7 @@ export class GameEngine {
     }
 
     this.boss = null;
+    this.bossStrikes = [];
     this.brain.reset();
 
     if (this.defeatedBosses.size >= 3) {
@@ -2967,12 +2968,9 @@ export class GameEngine {
       connectome,
       abilities: {
         autoLanceLevel: this.player.manualLanceLevel,
-        lightningLevel: this.player.lightningLevel,
-        lightningCooldown: this.player.lightningCooldown,
-        lightningMaxCooldown:
-          this.player.lightningLevel > 0
-            ? this.getLightningCooldownDuration()
-            : 0,
+        lightningLevel: 0,
+        lightningCooldown: 0,
+        lightningMaxCooldown: 0,
         xpPickupRadius: this.player.magnet,
       },
       skills: this.getOwnedSkills(),
