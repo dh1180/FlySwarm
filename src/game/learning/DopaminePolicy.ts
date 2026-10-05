@@ -1,4 +1,5 @@
 import type { WholeBrainOutput } from '../types';
+import { PRETRAINED_DOPAMINE_POLICY } from './pretrainedPolicy';
 
 export type DopamineSnapshot = {
   generation: number;
@@ -9,10 +10,11 @@ export type DopamineSnapshot = {
   baseline: number;
   exploration: number;
   recentReward: number;
+  pretrainedEpisodes: number;
 };
 
 type SavedState = {
-  version: 1;
+  version: 2;
   learned: number[][];
   baseline: number;
   lifetimeReward: number;
@@ -22,7 +24,7 @@ type SavedState = {
   generation: number;
 };
 
-const STORAGE_KEY = 'flyswarm:dopamine-policy:v1';
+const STORAGE_KEY = 'flyswarm:dopamine-policy:v2';
 const INPUTS = 8;
 const OUTPUTS = 2;
 
@@ -43,8 +45,8 @@ const gaussian = () => {
 };
 
 export class DopaminePolicy {
-  private learned = Array.from({ length: OUTPUTS }, () =>
-    Array.from({ length: INPUTS }, () => 0),
+  private learned = PRETRAINED_DOPAMINE_POLICY.learned.map((row) =>
+    Array.from(row),
   );
   private eligibility = Array.from({ length: OUTPUTS }, () =>
     Array.from({ length: INPUTS }, () => 0),
@@ -146,6 +148,7 @@ export class DopaminePolicy {
       baseline: this.baseline,
       exploration: this.getExploration(),
       recentReward: this.recentReward,
+      pretrainedEpisodes: PRETRAINED_DOPAMINE_POLICY.episodes,
     };
   }
 
@@ -159,7 +162,7 @@ export class DopaminePolicy {
       const raw = localStorage.getItem(STORAGE_KEY);
       if (!raw) return;
       const state = JSON.parse(raw) as SavedState;
-      if (state.version !== 1) return;
+      if (state.version !== 2) return;
       if (
         !Array.isArray(state.learned) ||
         state.learned.length !== OUTPUTS ||
@@ -178,7 +181,7 @@ export class DopaminePolicy {
       this.updates = Number(state.updates) || 0;
       this.generation = Math.max(1, Number(state.generation) || 1);
     } catch {
-      // Corrupt learning state falls back to the biologically-inspired seed policy.
+      // Corrupt learning state falls back to the shipped pretrained checkpoint.
     }
   }
 
@@ -188,7 +191,7 @@ export class DopaminePolicy {
     this.lastSave = now;
 
     const state: SavedState = {
-      version: 1,
+      version: 2,
       learned: this.learned,
       baseline: this.baseline,
       lifetimeReward: this.lifetimeReward,
