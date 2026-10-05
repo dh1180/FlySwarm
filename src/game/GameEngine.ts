@@ -2038,16 +2038,19 @@ export class GameEngine {
         );
       }
 
+      const fieldFusionCount = this.fusionCountFor('synapticField');
       if (
-        this.evolvedSkills.has('glialCalciumStorm') &&
-        field.pulseTimer >= 0.95
+        fieldFusionCount > 0 &&
+        field.pulseTimer >=
+          (this.evolvedSkills.has('glialCalciumStorm') ? 0.95 : 1.35)
       ) {
         field.pulseTimer = 0;
         this.damageCircle(
           field.x,
           field.y,
           field.radius * 0.72,
-          field.damage * 1.35,
+          field.damage *
+            (this.evolvedSkills.has('glialCalciumStorm') ? 1.35 : 0.72),
         );
         this.lightningFx.push({
           x1: field.x + randomRange(-80, 80),
@@ -2208,64 +2211,119 @@ export class GameEngine {
     if (!Number.isFinite(bestDistance)) return;
 
     const level = this.player.manualLanceLevel;
-    const evolved = this.evolvedSkills.has('spikePropagation');
+    const fusionCount = this.fusionCountFor('manualLance');
+    const propagation = this.evolvedSkills.has('spikePropagation');
+    const satellite = this.evolvedSkills.has('axonalSatellite');
+    const barrage = this.evolvedSkills.has('synapticBarrage');
     const aim = normalize(targetX - this.player.x, targetY - this.player.y);
+
     this.player.manualLanceCooldown =
-      Math.max(0.38, 1.22 - level * 0.12) * (evolved ? 0.72 : 1);
+      Math.max(0.38, 1.22 - level * 0.12) *
+      Math.max(0.64, 1 - fusionCount * 0.045) *
+      (propagation ? 0.82 : 1);
+
+    const speed =
+      (860 + level * 55) * (1 + fusionCount * 0.045);
+    const damage =
+      this.player.damage *
+      (2.05 + level * 0.46) *
+      (1 + fusionCount * 0.17);
+    const pierce = 5 + level * 2 + fusionCount;
 
     this.bullets.push({
       x: this.player.x + aim.x * 16,
       y: this.player.y + aim.y * 16,
-      vx: aim.x * (860 + level * 55) * (evolved ? 1.18 : 1),
-      vy: aim.y * (860 + level * 55) * (evolved ? 1.18 : 1),
-      radius: 7 + level * 0.8 + (evolved ? 2.5 : 0),
+      vx: aim.x * speed,
+      vy: aim.y * speed,
+      radius: 7 + level * 0.8 + fusionCount * 0.35,
       life: 1.05 + level * 0.08,
-      damage:
-        this.player.damage *
-        (2.05 + level * 0.46) *
-        (evolved ? 1.35 : 1),
-      pierce: 5 + level * 2 + (evolved ? 5 : 0),
+      damage,
+      pierce,
       hit: new Set<number>(),
       critical: false,
       style: 'LANCE',
     });
 
-    if (evolved) {
-      const thunderDamage = this.player.damage * 1.2;
-      this.damageCircle(targetX, targetY, 72, thunderDamage);
-      for (let i = 0; i < 2; i += 1) {
-        this.lightningFx.push({
-          x1: targetX + randomRange(-90, 90),
-          y1: Math.max(0, targetY - randomRange(360, 520)),
-          x2: targetX,
-          y2: targetY,
-          life: 0.22,
-          maxLife: 0.22,
-          color: '#d9f7ff',
+    if (satellite) {
+      for (const offset of [-0.11, 0.11]) {
+        const angle = Math.atan2(aim.y, aim.x) + offset;
+        this.bullets.push({
+          x: this.player.x,
+          y: this.player.y,
+          vx: Math.cos(angle) * speed * 0.92,
+          vy: Math.sin(angle) * speed * 0.92,
+          radius: 5.5,
+          life: 0.95,
+          damage: damage * 0.48,
+          pierce: Math.max(2, Math.floor(pierce / 2)),
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
         });
       }
-      this.spawnRing(targetX, targetY, 8, 82, '#d9f7ff', 0.28, 4);
+    }
+
+    if (propagation) {
+      this.damageCircle(targetX, targetY, 82, damage * 0.42);
+      this.spawnRing(targetX, targetY, 8, 92, '#5beaff', 0.3, 5);
+    }
+
+    if (
+      this.evolvedSkills.has('venomAxon') ||
+      this.evolvedSkills.has('axonMesh')
+    ) {
+      const venom = this.evolvedSkills.has('venomAxon');
+      this.damageFields.push({
+        x: targetX,
+        y: targetY,
+        radius: venom ? 82 : 74,
+        life: venom ? 3.2 : 2.6,
+        maxLife: venom ? 3.2 : 2.6,
+        damage: this.player.damage * (venom ? 0.34 : 0.26),
+        pulseTimer: 0,
+      });
+    }
+
+    if (barrage) {
+      for (let i = 0; i < 4; i += 1) {
+        const angle = (i / 4) * TAU;
+        this.bullets.push({
+          x: targetX,
+          y: targetY,
+          vx: Math.cos(angle) * 560,
+          vy: Math.sin(angle) * 560,
+          radius: 5,
+          life: 0.65,
+          damage: damage * 0.36,
+          pierce: 2,
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
+        });
+      }
     }
 
     this.spawnParticles(
       this.player.x,
       this.player.y,
-      evolved ? '#d9f7ff' : '#ffffff',
-      evolved ? 26 : 16,
-      evolved ? 190 : 125,
+      fusionCount > 0 ? '#d9f7ff' : '#ffffff',
+      16 + fusionCount * 3,
+      125 + fusionCount * 15,
     );
     this.spawnRing(
       this.player.x,
       this.player.y,
       8,
-      evolved ? 62 : 42,
-      evolved ? '#d9f7ff' : '#ffffff',
+      42 + fusionCount * 7,
+      fusionCount > 0 ? '#d9f7ff' : '#ffffff',
       0.22,
-      evolved ? 6 : 4,
+      4 + fusionCount * 0.5,
     );
-    this.screenShake = Math.max(this.screenShake, evolved ? 5.5 : 3.2);
+    this.screenShake = Math.max(
+      this.screenShake,
+      3.2 + fusionCount * 0.55,
+    );
   }
-
 
   private triggerMeteor() {
     let x = this.aimX;
@@ -2291,12 +2349,71 @@ export class GameEngine {
     }
 
     const level = this.player.meteorLevel;
-    const evolved = this.evolvedSkills.has('glialCalciumStorm');
-    const radius = (112 + level * 12) * (evolved ? 1.28 : 1);
-    const damage = (66 + level * 30) * (evolved ? 1.5 : 1);
+    const fusionCount = this.fusionCountFor('meteor');
+    const storm = this.evolvedSkills.has('glialCalciumStorm');
+    const radius =
+      (112 + level * 12) *
+      (1 + fusionCount * 0.07) *
+      (storm ? 1.16 : 1);
+    const damage =
+      (66 + level * 30) *
+      (1 + fusionCount * 0.18) *
+      (storm ? 1.2 : 1);
+
     this.damageCircle(x, y, radius, damage);
 
-    const trails = evolved ? 4 : 2;
+    if (this.evolvedSkills.has('calciumWave')) {
+      this.damageCircle(x, y, radius * 0.72, damage * 0.7);
+      this.spawnRing(x, y, 10, radius * 1.25, '#5beaff', 0.42, 6);
+    }
+
+    if (this.evolvedSkills.has('hemolymphCascade')) {
+      this.damageFields.push({
+        x,
+        y,
+        radius: radius * 0.68,
+        life: 4,
+        maxLife: 4,
+        damage: damage * 0.18,
+        pulseTimer: 0,
+      });
+    }
+
+    if (this.evolvedSkills.has('synapticBarrage')) {
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i / 8) * TAU;
+        this.bullets.push({
+          x,
+          y,
+          vx: Math.cos(angle) * 650,
+          vy: Math.sin(angle) * 650,
+          radius: 5.5,
+          life: 0.8,
+          damage: this.player.damage * 1.15,
+          pierce: 3,
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
+        });
+      }
+    }
+
+    if (this.evolvedSkills.has('glialOrbitalCascade')) {
+      for (let i = 0; i < 3; i += 1) {
+        const angle = (i / 3) * TAU + this.time;
+        const ox = x + Math.cos(angle) * radius * 0.55;
+        const oy = y + Math.sin(angle) * radius * 0.55;
+        this.damageCircle(
+          ox,
+          oy,
+          42,
+          this.player.orbitalDamage * 4.2,
+        );
+        this.spawnRing(ox, oy, 5, 44, '#5beaff', 0.28, 3);
+      }
+    }
+
+    const trails = 2 + Math.min(4, fusionCount);
     for (let i = 0; i < trails; i += 1) {
       this.lightningFx.push({
         x1: x + randomRange(-220, 120),
@@ -2305,29 +2422,31 @@ export class GameEngine {
         y2: y,
         life: 0.3,
         maxLife: 0.3,
-        color: evolved ? '#ffffff' : '#ffcf57',
+        color: fusionCount > 0 ? '#ffffff' : '#ffcf57',
       });
     }
 
     this.spawnParticles(
       x,
       y,
-      evolved ? '#ffffff' : '#ffcf57',
-      evolved ? 55 : 34,
-      evolved ? 280 : 205,
+      fusionCount > 0 ? '#ffffff' : '#ffcf57',
+      34 + fusionCount * 5,
+      205 + fusionCount * 15,
     );
     this.spawnRing(
       x,
       y,
       16,
       radius,
-      evolved ? '#d9f7ff' : '#ffcf57',
+      fusionCount > 0 ? '#d9f7ff' : '#ffcf57',
       0.48,
-      evolved ? 9 : 6,
+      6 + fusionCount * 0.6,
     );
-    this.screenShake = Math.max(this.screenShake, evolved ? 14 : 9);
+    this.screenShake = Math.max(
+      this.screenShake,
+      9 + fusionCount * 0.8,
+    );
   }
-
   private findNearestFly(
     x: number,
     y: number,
