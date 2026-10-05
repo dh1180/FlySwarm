@@ -4,12 +4,17 @@ import { DopaminePolicy } from './learning/DopaminePolicy';
 import type {
   Bullet,
   FlyAgent,
+  EvolutionKey,
+  GameClearSnapshot,
   GameOverSnapshot,
   Genome,
   HudSnapshot,
   Orb,
+  OwnedSkill,
   Player,
   SelectedFly,
+  SkillKey,
+  SkillRarity,
   UpgradeKey,
   UpgradeOption,
 } from './types';
@@ -18,7 +23,7 @@ const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1350;
-const WAVE_SECONDS = 28;
+const WAVE_SECONDS = 32;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
@@ -58,6 +63,7 @@ type DamageField = {
   life: number;
   maxLife: number;
   damage: number;
+  pulseTimer: number;
 };
 
 type Particle = {
@@ -81,6 +87,33 @@ type LightningFx = {
   color: string;
 };
 
+type RingFx = {
+  x: number;
+  y: number;
+  life: number;
+  maxLife: number;
+  startRadius: number;
+  endRadius: number;
+  color: string;
+  lineWidth: number;
+};
+
+type UpgradeDefinition = {
+  key: UpgradeKey;
+  title: string;
+  description: string;
+  rarity: Exclude<SkillRarity, 'EVOLUTION'>;
+  maxLevel: number;
+};
+
+type EvolutionDefinition = {
+  key: EvolutionKey;
+  title: string;
+  description: string;
+  detail: string;
+  requirements: [UpgradeKey, UpgradeKey];
+};
+
 const clamp = (value: number, min: number, max: number) =>
   Math.max(min, Math.min(max, value));
 
@@ -94,44 +127,70 @@ const randomRange = (min: number, max: number) =>
 
 const copyGenome = (g: Genome): Genome => ({ ...g });
 
-const upgradeCatalog: UpgradeOption[] = [
-  { key: 'damage', title: 'Heavy Shot', description: '투사체 피해량 +25%', rarity: 'COMMON' },
-  { key: 'firerate', title: 'Synapse Rush', description: '자동 공격 주기 -18%', rarity: 'COMMON' },
-  { key: 'multishot', title: 'Split Signal', description: '동시 발사 투사체 +1', rarity: 'RARE' },
-  { key: 'speed', title: 'Motor Cortex', description: '이동속도 +12%', rarity: 'COMMON' },
-  { key: 'health', title: 'Thick Skin', description: '최대 체력 +25 및 즉시 회복', rarity: 'COMMON' },
-  { key: 'pierce', title: 'Axon Piercer', description: '투사체 관통 횟수 +1', rarity: 'RARE' },
-  { key: 'magnet', title: 'Dopamine Field', description: '경험치 흡수 반경 +35', rarity: 'COMMON' },
-  { key: 'bulletSpeed', title: 'Fast Conduction', description: '투사체 속도 +20%', rarity: 'COMMON' },
-  { key: 'bulletSize', title: 'Giant Vesicle', description: '투사체 크기 +1.2', rarity: 'COMMON' },
-  { key: 'crit', title: 'Burst Firing', description: '치명타 확률 +8%', rarity: 'RARE' },
-  { key: 'regen', title: 'Homeostasis', description: '초당 체력 재생 +0.65', rarity: 'RARE' },
-  { key: 'armor', title: 'Chitin Layer', description: '받는 피해 5% 감소', rarity: 'RARE' },
-  { key: 'knockback', title: 'Motor Shock', description: '적 넉백 +22', rarity: 'COMMON' },
-  { key: 'orbital', title: 'Satellite Neuron', description: '플레이어 주변 공격 오비탈 +1', rarity: 'NEURAL' },
-  { key: 'nova', title: 'Action Potential Nova', description: '주기적인 광역 신경 펄스 획득/강화', rarity: 'NEURAL' },
-  { key: 'xpGain', title: 'Memory Consolidation', description: '경험치 획득량 +25%', rarity: 'RARE' },
-  { key: 'bossDamage', title: 'Connectome Breaker', description: '전체뇌 보스 피해량 +25%', rarity: 'NEURAL' },
-  { key: 'critPower', title: 'Spike Burst', description: '치명타 배율 +0.45', rarity: 'RARE' },
-  { key: 'leech', title: 'Hemolymph Leech', description: '초파리 처치 시 체력 회복', rarity: 'RARE' },
-  { key: 'toxinAura', title: 'Neurotoxin Cloud', description: '주변 적에게 지속 피해 오라', rarity: 'NEURAL' },
-  { key: 'chain', title: 'Chain Synapse', description: '명중 시 주변 적에게 연쇄 신호', rarity: 'NEURAL' },
-  { key: 'shield', title: 'Refractory Shield', description: '재생되는 신경 보호막 획득', rarity: 'RARE' },
-  { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력에서 이동/공격 속도 증가', rarity: 'RARE' },
-  { key: 'bulletLife', title: 'Long Axon', description: '투사체 생존시간 +30%', rarity: 'COMMON' },
-  { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속을 동시에 강화', rarity: 'NEURAL' },
-  { key: 'manualLance', title: 'Motor Lance', description: '주기적으로 가장 가까운 적에게 강력한 관통 신경탄 자동 발사', rarity: 'NEURAL' },
-  { key: 'targetLightning', title: 'Cortical Thunder', description: 'E: 마우스 위치에 직접 낙뢰 지정', rarity: 'NEURAL' },
-  { key: 'synapticField', title: 'Synaptic Carpet', description: '주기적으로 조준 방향에 지속 피해 장판 생성', rarity: 'NEURAL' },
-  { key: 'meteor', title: 'Glial Meteor', description: '주기적으로 강한 적 위치에 광역 낙하 공격', rarity: 'NEURAL' },
-  { key: 'ricochet', title: 'Recurrent Circuit', description: '명중 시 확률적으로 추가 투사체가 주변 적에게 튕김', rarity: 'RARE' },
-  { key: 'execute', title: 'Apoptosis Trigger', description: '체력이 낮은 적에게 추가 처형 피해', rarity: 'RARE' },
+const upgradeCatalog: UpgradeDefinition[] = [
+  { key: 'damage', title: 'Heavy Shot', description: '기본 투사체 피해 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'firerate', title: 'Synapse Rush', description: '자동 공격 속도 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'multishot', title: 'Split Signal', description: '동시 발사 수 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'speed', title: 'Motor Cortex', description: '이동속도 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'health', title: 'Thick Skin', description: '최대 체력과 즉시 회복', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'pierce', title: 'Axon Piercer', description: '투사체 관통 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'magnet', title: 'Dopamine Field', description: '경험치 즉시 획득 반경 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'bulletSpeed', title: 'Fast Conduction', description: '투사체 속도 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'bulletSize', title: 'Giant Vesicle', description: '투사체 크기 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'crit', title: 'Burst Firing', description: '치명타 확률 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'regen', title: 'Homeostasis', description: '체력 재생 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'armor', title: 'Chitin Layer', description: '받는 피해 감소', rarity: 'RARE', maxLevel: 5 },
+  { key: 'knockback', title: 'Motor Shock', description: '적 넉백 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'orbital', title: 'Satellite Neuron', description: '공격 오비탈 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'nova', title: 'Action Potential Nova', description: '주기 광역 신경 펄스 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'xpGain', title: 'Memory Consolidation', description: '경험치 획득량 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'bossDamage', title: 'Connectome Breaker', description: '보스 대상 피해 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'critPower', title: 'Spike Burst', description: '치명타 피해 배율 강화', rarity: 'RARE', maxLevel: 4 },
+  { key: 'leech', title: 'Hemolymph Leech', description: '처치 시 체력 회복', rarity: 'RARE', maxLevel: 5 },
+  { key: 'toxinAura', title: 'Neurotoxin Cloud', description: '주변 지속 피해 오라 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'chain', title: 'Chain Synapse', description: '연쇄 피해 확률과 배율 강화', rarity: 'NEURAL', maxLevel: 4 },
+  { key: 'shield', title: 'Refractory Shield', description: '재생 보호막 강화', rarity: 'RARE', maxLevel: 5 },
+  { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력 공격/이동 가속 강화', rarity: 'RARE', maxLevel: 4 },
+  { key: 'bulletLife', title: 'Long Axon', description: '투사체 수명과 사거리 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속 복합 강화', rarity: 'NEURAL', maxLevel: 4 },
+  { key: 'manualLance', title: 'Motor Lance', description: '자동 관통 신경탄 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'targetLightning', title: 'Cortical Thunder', description: '지정 낙뢰 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'synapticField', title: 'Synaptic Carpet', description: '지속 피해 장판 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'meteor', title: 'Glial Meteor', description: '주기 광역 낙하 공격 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'ricochet', title: 'Recurrent Circuit', description: '추가 튕김탄 강화', rarity: 'RARE', maxLevel: 5 },
+  { key: 'execute', title: 'Apoptosis Trigger', description: '저체력 적 처형 피해 강화', rarity: 'RARE', maxLevel: 5 },
 ];
+
+const evolutionCatalog: EvolutionDefinition[] = [
+  {
+    key: 'stormLance',
+    title: 'THUNDER LANCE',
+    description: 'Motor Lance + Cortical Thunder 융합',
+    detail: '자동 Lance가 표적에 낙뢰를 동반하고, 지정 낙뢰가 8방향 Lance를 방출합니다.',
+    requirements: ['manualLance', 'targetLightning'],
+  },
+  {
+    key: 'ionCataclysm',
+    title: 'ION CATACLYSM',
+    description: 'Synaptic Carpet + Glial Meteor 융합',
+    detail: '장판이 주기적으로 번개 폭발을 일으키고 Meteor의 광역 피해와 충격파가 강화됩니다.',
+    requirements: ['synapticField', 'meteor'],
+  },
+  {
+    key: 'neuralSingularity',
+    title: 'NEURAL SINGULARITY',
+    description: 'Action Potential Nova + Satellite Neuron 융합',
+    detail: 'Nova 범위·피해가 크게 증가하고 주변 적을 끌어당기며 오비탈 피해도 증폭됩니다.',
+    requirements: ['nova', 'orbital'],
+  },
+];
+
 
 type Callbacks = {
   onHud: (hud: HudSnapshot) => void;
   onLevelUp: (options: UpgradeOption[]) => void;
   onGameOver: (result: GameOverSnapshot) => void;
+  onGameClear: (result: GameClearSnapshot) => void;
 };
 
 export class GameEngine {
@@ -146,6 +205,7 @@ export class GameEngine {
   private running = false;
   private pausedForUpgrade = false;
   private gameOver = false;
+  private gameCleared = false;
   private last = 0;
   private time = 0;
   private hudTimer = 0;
@@ -182,7 +242,12 @@ export class GameEngine {
   private damageFields: DamageField[] = [];
   private particles: Particle[] = [];
   private lightningFx: LightningFx[] = [];
+  private ringFx: RingFx[] = [];
   private boss: Boss | null = null;
+  private readonly defeatedBosses = new Set<BossKind>();
+  private readonly upgradeLevels: Partial<Record<UpgradeKey, number>> = {};
+  private readonly evolvedSkills = new Set<EvolutionKey>();
+  private ownedSkillOrder: SkillKey[] = [];
   private swarmGenome: Genome = {
     aggression: 0.56,
     fear: 0.35,
