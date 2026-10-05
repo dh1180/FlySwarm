@@ -382,6 +382,20 @@ async function loadBrain() {
 
   loomLeft = Int32Array.from(l);
   loomRight = Int32Array.from(r);
+
+  if (!loomLeft.length || !loomRight.length) {
+    throw new Error('LPLC2 left/right sensory populations are incomplete');
+  }
+
+  for (const required of ['turn', 'walk', 'backward', 'escape', 'stop', 'wing']) {
+    if (!channels.channels[required]?.all?.length) {
+      throw new Error(`Required motor channel is missing: ${required}`);
+    }
+  }
+  if (!channels.channels.turn.left?.length || !channels.channels.turn.right?.length) {
+    throw new Error('DNa02 left/right steering channels are incomplete');
+  }
+
   engine = new LifEngine(graph, 0.5);
 
   post({
