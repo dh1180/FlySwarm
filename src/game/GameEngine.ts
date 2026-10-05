@@ -1627,7 +1627,7 @@ export class GameEngine {
           damage:
             (9 + this.wave * 0.62) * boss.damageScale,
           life: 4.8,
-          color: strike.color,
+          color: '#b678ff',
           bossOwned: true,
         });
       }
