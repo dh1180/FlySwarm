@@ -597,6 +597,13 @@ export class GameEngine {
     x = clamp(x, -margin, WORLD_WIDTH + margin);
     y = clamp(y, -margin, WORLD_HEIGHT + margin);
 
+    const roll = Math.random();
+    let kind: FlyAgent['kind'] = 'DRONE';
+    if (this.wave >= 5 && roll < 0.09) kind = 'BOMBER';
+    else if (this.wave >= 4 && roll < 0.2) kind = 'SPITTER';
+    else if (this.wave >= 3 && roll < 0.32) kind = 'BRUTE';
+    else if (this.wave >= 2 && roll < 0.5) kind = 'DARTER';
+
     const mutate = (value: number, amount = 0.18) =>
       clamp(value + randomRange(-amount, amount), 0.05, 1);
 
@@ -608,25 +615,64 @@ export class GameEngine {
       speed: mutate(this.swarmGenome.speed, 0.14),
     };
 
-    const hp = 26 + this.wave * 3.4;
+    if (kind === 'DARTER') {
+      genome.speed = clamp(genome.speed + 0.26, 0.05, 1);
+      genome.fear = clamp(genome.fear - 0.12, 0.05, 1);
+    } else if (kind === 'BRUTE') {
+      genome.aggression = clamp(genome.aggression + 0.2, 0.05, 1);
+      genome.speed = clamp(genome.speed - 0.2, 0.05, 1);
+    } else if (kind === 'SPITTER') {
+      genome.fear = clamp(genome.fear + 0.18, 0.05, 1);
+      genome.social = clamp(genome.social - 0.12, 0.05, 1);
+    } else if (kind === 'BOMBER') {
+      genome.aggression = clamp(genome.aggression + 0.32, 0.05, 1);
+      genome.fear = 0.05;
+    }
+
+    const baseHp = 26 + this.wave * 3.4;
+    const hpMultiplier =
+      kind === 'BRUTE'
+        ? 3.25
+        : kind === 'DARTER'
+          ? 0.68
+          : kind === 'SPITTER'
+            ? 1.25
+            : kind === 'BOMBER'
+              ? 0.9
+              : 1;
+    const hp = baseHp * hpMultiplier;
+    const radius =
+      kind === 'BRUTE'
+        ? 13.5
+        : kind === 'DARTER'
+          ? 7
+          : kind === 'SPITTER'
+            ? 9
+            : kind === 'BOMBER'
+              ? 10.5
+              : 8.5;
+
     return {
       id: this.flyId++,
+      kind,
       x,
       y,
       vx: 0,
       vy: 0,
       hp,
       maxHp: hp,
-      radius: 8.5,
+      radius,
       phase: Math.random() * TAU,
       genome,
       decision: 'WANDER',
+      attackCooldown: randomRange(0.4, 1.6),
     };
   }
 
   private updateFlies(dt: number) {
     for (const fly of this.flies) {
       if (fly.hp <= 0) continue;
+      fly.attackCooldown = Math.max(0, fly.attackCooldown - dt);
 
       const px = this.player.x - fly.x;
       const py = this.player.y - fly.y;
@@ -664,12 +710,44 @@ export class GameEngine {
       let desiredX = towardPlayer.x;
       let desiredY = towardPlayer.y;
 
-      if (fleeScore > chaseScore && fleeScore > swarmScore && nearestBullet) {
+      if (fly.kind === 'SPITTER') {
+        fly.decision = playerDistance < 245 ? 'FLEE' : 'CHASE';
+        if (playerDistance < 245) {
+          desiredX = -towardPlayer.x;
+          desiredY = -towardPlayer.y;
+        } else if (playerDistance < 430) {
+          desiredX = -towardPlayer.y * 0.9 + towardPlayer.x * 0.18;
+          desiredY = towardPlayer.x * 0.9 + towardPlayer.y * 0.18;
+        }
+
+        if (fly.attackCooldown <= 0 && playerDistance < 590) {
+          fly.attackCooldown = Math.max(0.8, 1.7 - this.wave * 0.035);
+          this.fireEnemyShot(
+            fly.x,
+            fly.y,
+            this.player.x,
+            this.player.y,
+            215 + this.wave * 4,
+            8 + this.wave * 0.65,
+            '#ff86d7',
+          );
+          this.spawnParticles(fly.x, fly.y, '#ff86d7', 6, 55);
+        }
+      } else if (
+        fleeScore > chaseScore &&
+        fleeScore > swarmScore &&
+        nearestBullet &&
+        fly.kind !== 'BOMBER'
+      ) {
         fly.decision = 'FLEE';
         const away = normalize(fly.x - nearestBullet.x, fly.y - nearestBullet.y);
         desiredX = away.x;
         desiredY = away.y;
-      } else if (swarmScore > chaseScore * 0.84 && neighbors.length) {
+      } else if (
+        swarmScore > chaseScore * 0.84 &&
+        neighbors.length &&
+        fly.kind !== 'BOMBER'
+      ) {
         fly.decision = 'SWARM';
         let cx = 0;
         let cy = 0;
@@ -709,17 +787,44 @@ export class GameEngine {
       desiredY += Math.sin(fly.phase) * wobble;
       const desired = normalize(desiredX, desiredY);
 
+      const kindSpeed =
+        fly.kind === 'DARTER'
+          ? 1.62
+          : fly.kind === 'BRUTE'
+            ? 0.68
+            : fly.kind === 'SPITTER'
+              ? 0.8
+              : fly.kind === 'BOMBER'
+                ? 1.24
+                : 1;
       const speed =
         (84 + fly.genome.speed * 88 + this.wave * 3.6) *
-        (fly.decision === 'FLEE' ? 1.14 : 1);
-      const steer = clamp(dt * 5.2, 0, 1);
+        (fly.decision === 'FLEE' ? 1.14 : 1) *
+        kindSpeed;
+      const steer = clamp(dt * (fly.kind === 'DARTER' ? 7.8 : 5.2), 0, 1);
       fly.vx += (desired.x * speed - fly.vx) * steer;
       fly.vy += (desired.y * speed - fly.vy) * steer;
       fly.x += fly.vx * dt;
       fly.y += fly.vy * dt;
 
+      if (
+        fly.kind === 'BOMBER' &&
+        playerDistance < this.player.radius + fly.radius + 13
+      ) {
+        this.damagePlayer(22 + this.wave * 1.8);
+        this.screenShake = Math.max(this.screenShake, 10);
+        this.damageFlash = Math.max(this.damageFlash, 0.22);
+        this.spawnParticles(fly.x, fly.y, '#ff5b63', 24, 160);
+        fly.hp = 0;
+        this.killFly(fly);
+        continue;
+      }
+
       if (playerDistance < this.player.radius + fly.radius + 5) {
-        const contactDps = 9 + this.wave * 1.2 + fly.genome.aggression * 4;
+        const kindDamage =
+          fly.kind === 'BRUTE' ? 2.15 : fly.kind === 'DARTER' ? 0.85 : 1;
+        const contactDps =
+          (9 + this.wave * 1.2 + fly.genome.aggression * 4) * kindDamage;
         this.damagePlayer(contactDps * dt);
         fly.x -= towardPlayer.x * 42 * dt;
         fly.y -= towardPlayer.y * 42 * dt;
@@ -728,24 +833,40 @@ export class GameEngine {
   }
 
   private spawnBoss() {
-    const maxHp = 1050 + this.wave * 330;
+    const kinds: BossKind[] = ['NEURAL_HUNTER', 'STORM_BRAIN', 'SWARM_QUEEN'];
+    const kind = kinds[this.bossIndex % kinds.length];
+    this.bossIndex += 1;
+
+    const config =
+      kind === 'NEURAL_HUNTER'
+        ? { name: 'NEURAL HUNTER', hp: 0.92, radius: 31, special: 2.6 }
+        : kind === 'STORM_BRAIN'
+          ? { name: 'STORM BRAIN', hp: 1.08, radius: 36, special: 3.1 }
+          : { name: 'SWARM QUEEN', hp: 1.36, radius: 43, special: 4.6 };
+
+    const maxHp = (1050 + this.wave * 330) * config.hp;
     const camera = this.getCamera();
     this.boss = {
+      kind,
+      name: config.name,
       x: clamp(camera.x + VIEW_WIDTH / 2, 80, WORLD_WIDTH - 80),
       y: clamp(camera.y + 92, 80, WORLD_HEIGHT - 80),
       vx: 0,
       vy: 0,
-      radius: 34,
+      radius: config.radius,
       hp: maxHp,
       maxHp,
       heading: Math.PI / 2,
-      pulseCooldown: 1.6,
+      pulseCooldown: 1.4,
+      specialCooldown: config.special,
     };
     this.bossBrainTimer = 0;
     this.bossPolicyTurn = 0;
     this.bossPolicyDrive = 0;
     this.bossRewardBuffer = 0;
     this.bossPenaltyBuffer = 0;
+    this.screenShake = Math.max(this.screenShake, 7);
+    this.spawnParticles(this.boss.x, this.boss.y, '#c7ff45', 30, 145);
     this.brain.reset();
   }
 
@@ -757,6 +878,7 @@ export class GameEngine {
 
     this.bossBrainTimer += dt;
     boss.pulseCooldown = Math.max(0, boss.pulseCooldown - dt);
+    boss.specialCooldown = Math.max(0, boss.specialCooldown - dt);
 
     if (this.bossBrainTimer >= 0.32) {
       this.bossBrainTimer = 0;
@@ -790,7 +912,6 @@ export class GameEngine {
       const towardPlayer = normalize(dx, dy);
       const rightX = -Math.sin(boss.heading);
       const rightY = Math.cos(boss.heading);
-      // fly-brain-bench convention: negative = left eye, positive = right eye.
       const side = clamp(
         towardPlayer.x * rightX + towardPlayer.y * rightY,
         -1,
@@ -812,14 +933,25 @@ export class GameEngine {
       y: Math.sin(boss.heading),
     };
 
-    // The connectome produces the neural features; the dopamine policy learns
-    // which mixtures of those features are useful for damaging this player.
-    const drive = this.bossPolicyDrive * 310;
+    const kindDrive =
+      boss.kind === 'NEURAL_HUNTER'
+        ? 1.24
+        : boss.kind === 'STORM_BRAIN'
+          ? 0.96
+          : 0.78;
+    let drive = this.bossPolicyDrive * 310 * kindDrive;
+    if (boss.kind === 'NEURAL_HUNTER' && distance < 330 && out.forward > 0.3) {
+      drive *= 1.28;
+    }
 
     const desiredX = forward.x * drive;
     const desiredY = forward.y * drive;
 
-    const responsiveness = clamp(dt * 3.8, 0, 1);
+    const responsiveness = clamp(
+      dt * (boss.kind === 'NEURAL_HUNTER' ? 5 : 3.8),
+      0,
+      1,
+    );
     boss.vx += (desiredX - boss.vx) * responsiveness;
     boss.vy += (desiredY - boss.vy) * responsiveness;
     boss.x += boss.vx * dt;
@@ -837,17 +969,81 @@ export class GameEngine {
     }
 
     if (distance < boss.radius + this.player.radius + 8) {
-      this.damagePlayerFromBoss((25 + this.wave * 1.8) * dt);
+      const contactScale =
+        boss.kind === 'SWARM_QUEEN' ? 1.28 : boss.kind === 'NEURAL_HUNTER' ? 1.12 : 1;
+      this.damagePlayerFromBoss((25 + this.wave * 1.8) * contactScale * dt);
     }
 
     if (
       boss.pulseCooldown <= 0 &&
-      (out.activity > 0.52 || out.wing > 0.48)
+      (out.activity > 0.5 || out.wing > 0.46)
     ) {
-      boss.pulseCooldown = 2.4;
-      this.bossPulseFlash = 0.42;
-      if (distance < 205) {
-        this.damagePlayerFromBoss(10 + this.wave * 1.4);
+      const pulseRadius = boss.kind === 'STORM_BRAIN' ? 250 : 205;
+      boss.pulseCooldown = boss.kind === 'STORM_BRAIN' ? 1.75 : 2.35;
+      this.bossPulseFlash = 0.5;
+      this.screenShake = Math.max(this.screenShake, 5);
+      this.spawnParticles(boss.x, boss.y, '#ff5b63', 18, 120);
+      if (distance < pulseRadius) {
+        this.damagePlayerFromBoss(
+          (10 + this.wave * 1.4) *
+            (boss.kind === 'STORM_BRAIN' ? 1.18 : 1),
+        );
+      }
+    }
+
+    if (boss.specialCooldown <= 0) {
+      if (boss.kind === 'STORM_BRAIN') {
+        boss.specialCooldown = 3.1;
+        for (let i = 0; i < 10; i += 1) {
+          const angle = (i / 10) * TAU + this.time * 0.35;
+          this.enemyShots.push({
+            x: boss.x,
+            y: boss.y,
+            vx: Math.cos(angle) * (175 + this.wave * 3),
+            vy: Math.sin(angle) * (175 + this.wave * 3),
+            radius: 6,
+            damage: 9 + this.wave * 0.7,
+            life: 4.8,
+            color: '#b678ff',
+          });
+        }
+        this.lightningFx.push({
+          x1: boss.x,
+          y1: boss.y,
+          x2: this.player.x,
+          y2: this.player.y,
+          life: 0.22,
+          maxLife: 0.22,
+          color: '#b678ff',
+        });
+        this.screenShake = Math.max(this.screenShake, 7);
+      } else if (boss.kind === 'SWARM_QUEEN') {
+        boss.specialCooldown = 4.8;
+        for (let i = 0; i < 7; i += 1) {
+          const minion = this.createFly();
+          minion.x = clamp(boss.x + randomRange(-90, 90), 20, WORLD_WIDTH - 20);
+          minion.y = clamp(boss.y + randomRange(-90, 90), 20, WORLD_HEIGHT - 20);
+          minion.kind = i % 3 === 0 ? 'SPITTER' : 'DARTER';
+          minion.hp *= 1.25;
+          minion.maxHp = minion.hp;
+          this.flies.push(minion);
+        }
+        this.spawnParticles(boss.x, boss.y, '#c7ff45', 26, 135);
+      } else {
+        boss.specialCooldown = 2.7;
+        for (let i = -1; i <= 1; i += 1) {
+          const angle = Math.atan2(dy, dx) + i * 0.18;
+          this.enemyShots.push({
+            x: boss.x,
+            y: boss.y,
+            vx: Math.cos(angle) * (250 + this.wave * 4),
+            vy: Math.sin(angle) * (250 + this.wave * 4),
+            radius: 5,
+            damage: 8 + this.wave * 0.62,
+            life: 3.4,
+            color: '#ffcf57',
+          });
+        }
       }
     }
   }
