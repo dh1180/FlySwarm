@@ -8,6 +8,7 @@ import type {
   EvolutionKey,
   GameClearSnapshot,
   GameOverSnapshot,
+  GameSoundEvent,
   Genome,
   HudSnapshot,
   Orb,
@@ -213,6 +214,7 @@ type Callbacks = {
   onLevelUp: (options: UpgradeOption[], context: RewardContext) => void;
   onGameOver: (result: GameOverSnapshot) => void;
   onGameClear: (result: GameClearSnapshot) => void;
+  onSound: (event: GameSoundEvent) => void;
 };
 
 export class GameEngine {
@@ -403,6 +405,7 @@ export class GameEngine {
       );
       this.spawnParticles(this.player.x, this.player.y, '#ffffff', 42, 220);
       this.screenShake = Math.max(this.screenShake, 13);
+      this.callbacks.onSound('fusion');
       this.pausedForUpgrade = false;
       this.emitHud();
       return;
@@ -572,6 +575,8 @@ export class GameEngine {
         break;
     }
 
+    this.callbacks.onSound('upgrade');
+
     const immediateFusions =
       nextLevel >= definition.maxLevel && offensiveSkillKeys.includes(key)
         ? evolutionCatalog
@@ -586,6 +591,7 @@ export class GameEngine {
 
     if (immediateFusions.length) {
       this.pausedForUpgrade = true;
+      this.callbacks.onSound('fusionReady');
       this.callbacks.onLevelUp(immediateFusions, {
         source: 'FUSION_OFFER',
         title: 'SYNAPTIC FUSION',
@@ -942,6 +948,7 @@ export class GameEngine {
     if (this.player.hp <= 0) {
       this.player.hp = 0;
       this.gameOver = true;
+      this.callbacks.onSound('gameOver');
       this.callbacks.onGameOver({
         kills: this.kills,
         wave: this.wave,
@@ -1308,6 +1315,7 @@ export class GameEngine {
     this.bossPenaltyBuffer = 0;
     this.screenShake = Math.max(this.screenShake, 7);
     this.spawnParticles(this.boss.x, this.boss.y, '#c7ff45', 30, 145);
+    this.callbacks.onSound('bossSpawn');
     this.brain.reset();
   }
 
@@ -1449,6 +1457,7 @@ export class GameEngine {
             bossOwned: true,
           });
         }
+        this.callbacks.onSound('bossStrikeCharge');
         this.bossStrikes.push({
           x: this.player.x,
           y: this.player.y,
@@ -1564,7 +1573,8 @@ export class GameEngine {
         style: 'NORMAL',
       });
     }
-  }
+
+    this.callbacks.onSound('shot');  }
 
   private updateBullets(dt: number) {
     for (const bullet of this.bullets) {
@@ -1965,6 +1975,7 @@ export class GameEngine {
         this.damagePlayerFromBoss(strike.damage);
       }
 
+      this.callbacks.onSound('bossStrike');
       for (let i = 0; i < 3; i += 1) {
         this.lightningFx.push({
           x1: strike.x + randomRange(-85, 85),
@@ -2210,6 +2221,8 @@ export class GameEngine {
 
     if (!Number.isFinite(bestDistance)) return;
 
+    this.callbacks.onSound('axonSpike');
+
     const level = this.player.manualLanceLevel;
     const fusionCount = this.fusionCountFor('manualLance');
     const propagation = this.evolvedSkills.has('spikePropagation');
@@ -2326,6 +2339,7 @@ export class GameEngine {
   }
 
   private triggerMeteor() {
+    this.callbacks.onSound('calciumCascade');
     let x = this.aimX;
     let y = this.aimY;
     let bestScore = Infinity;
@@ -2487,6 +2501,7 @@ export class GameEngine {
       fly.kind === 'BOMBER' ? 155 : 95,
     );
     fly.hp = -9999;
+    this.callbacks.onSound('enemyDeath');
     if (this.player.killHeal > 0) {
       this.player.hp = Math.min(
         this.player.maxHp,
@@ -2530,6 +2545,7 @@ export class GameEngine {
     this.spawnRing(x, y, 20, 310, '#ffffff', 0.72, 12);
     this.spawnRing(x, y, 30, 220, '#c7ff45', 0.58, 7);
     this.screenShake = Math.max(this.screenShake, 18);
+    this.callbacks.onSound('bossDeath');
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
 
@@ -2557,6 +2573,7 @@ export class GameEngine {
 
     if (this.defeatedBosses.size >= 3) {
       this.gameCleared = true;
+      this.callbacks.onSound('gameClear');
       this.enemyShots = [];
       this.callbacks.onGameClear({
         kills: this.kills,
@@ -2632,6 +2649,14 @@ export class GameEngine {
 
   private openChest(chest: RewardChest) {
     if (this.pausedForUpgrade || this.gameOver || this.gameCleared) return;
+
+    this.callbacks.onSound(
+      chest.rarity === 'MYTHIC'
+        ? 'chestMythic'
+        : chest.rarity === 'RARE'
+          ? 'chestRare'
+          : 'chestCommon',
+    );
 
     const options = this.pickChestOptions(chest.rarity);
     if (!options.length) {
@@ -2773,6 +2798,7 @@ export class GameEngine {
       const options = this.pickUpgradeOptions();
       if (options.length) {
         this.pausedForUpgrade = true;
+        this.callbacks.onSound('levelUp');
         this.callbacks.onLevelUp(options, {
           source: 'LEVEL_UP',
           title: 'LEVEL UP',
@@ -2917,6 +2943,7 @@ export class GameEngine {
       this.damageFlash = Math.max(this.damageFlash, 0.16);
       this.screenShake = Math.max(this.screenShake, Math.min(8, 2 + actual * 0.16));
       this.spawnParticles(this.player.x, this.player.y, '#ff5b63', 5, 75);
+      this.callbacks.onSound('playerHit');
     }
     return actual;
   }
