@@ -1672,7 +1672,14 @@ export class GameEngine {
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
           if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + 10) {
-            fly.hp -= this.player.orbitalDamage * 6 * dt;
+            const orbitalMultiplier = this.evolvedSkills.has('neuralSingularity')
+              ? 1.75
+              : 1;
+            fly.hp -=
+              this.player.orbitalDamage *
+              6 *
+              orbitalMultiplier *
+              dt;
             if (fly.hp <= 0) this.killFly(fly);
           }
         }
@@ -1685,6 +1692,7 @@ export class GameEngine {
           this.damageBoss(
             this.player.orbitalDamage *
               4 *
+              (this.evolvedSkills.has('neuralSingularity') ? 1.75 : 1) *
               dt *
               this.player.bossDamage,
           );
@@ -1697,21 +1705,50 @@ export class GameEngine {
       if (this.player.novaTimer >= this.player.novaInterval) {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
-        const radius = 220;
+        const singularity = this.evolvedSkills.has('neuralSingularity');
+        const radius = singularity ? 320 : 220;
+        const damage = this.player.novaDamage * (singularity ? 1.65 : 1);
         this.damageCircle(
           this.player.x,
           this.player.y,
           radius,
-          this.player.novaDamage,
+          damage,
         );
+
+        if (singularity) {
+          for (const fly of this.flies) {
+            if (fly.hp <= 0) continue;
+            const dx = this.player.x - fly.x;
+            const dy = this.player.y - fly.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 0 && distance < 500) {
+              const pull = 90 * (1 - distance / 500);
+              fly.x += (dx / distance) * pull;
+              fly.y += (dy / distance) * pull;
+            }
+          }
+        }
+
         this.spawnParticles(
           this.player.x,
           this.player.y,
-          '#5beaff',
-          28,
-          180,
+          singularity ? '#ffffff' : '#5beaff',
+          singularity ? 48 : 28,
+          singularity ? 240 : 180,
         );
-        this.screenShake = Math.max(this.screenShake, 5);
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          24,
+          radius,
+          singularity ? '#ffffff' : '#5beaff',
+          0.55,
+          singularity ? 9 : 5,
+        );
+        this.screenShake = Math.max(
+          this.screenShake,
+          singularity ? 11 : 5,
+        );
       }
     }
 
@@ -1738,8 +1775,24 @@ export class GameEngine {
           life: 4.5 + this.player.fieldLevel * 0.45,
           maxLife: 4.5 + this.player.fieldLevel * 0.45,
           damage: 14 + this.player.fieldLevel * 7,
+          pulseTimer: 0,
         });
-        this.spawnParticles(x, y, '#9cff47', 18, 90);
+        this.spawnParticles(
+          x,
+          y,
+          this.evolvedSkills.has('ionCataclysm') ? '#ffffff' : '#9cff47',
+          this.evolvedSkills.has('ionCataclysm') ? 28 : 18,
+          this.evolvedSkills.has('ionCataclysm') ? 145 : 90,
+        );
+        this.spawnRing(
+          x,
+          y,
+          12,
+          82 + this.player.fieldLevel * 10,
+          this.evolvedSkills.has('ionCataclysm') ? '#d9f7ff' : '#9cff47',
+          0.45,
+          4,
+        );
       }
     }
 
@@ -1799,6 +1852,7 @@ export class GameEngine {
   private updateDamageFields(dt: number) {
     for (const field of this.damageFields) {
       field.life -= dt;
+      field.pulseTimer += dt;
       if (field.life <= 0) continue;
 
       for (const fly of this.spatial.query(
@@ -1825,6 +1879,37 @@ export class GameEngine {
           field.damage * 0.72 * dt * this.player.bossDamage,
         );
       }
+
+      if (
+        this.evolvedSkills.has('ionCataclysm') &&
+        field.pulseTimer >= 0.95
+      ) {
+        field.pulseTimer = 0;
+        this.damageCircle(
+          field.x,
+          field.y,
+          field.radius * 0.72,
+          field.damage * 1.35,
+        );
+        this.lightningFx.push({
+          x1: field.x + randomRange(-80, 80),
+          y1: Math.max(0, field.y - 440),
+          x2: field.x,
+          y2: field.y,
+          life: 0.24,
+          maxLife: 0.24,
+          color: '#d9f7ff',
+        });
+        this.spawnRing(
+          field.x,
+          field.y,
+          10,
+          field.radius * 0.8,
+          '#d9f7ff',
+          0.3,
+          4,
+        );
+      }
     }
   }
 
@@ -1837,6 +1922,9 @@ export class GameEngine {
       particle.vy *= 0.96;
     }
     for (const fx of this.lightningFx) {
+      fx.life -= dt;
+    }
+    for (const fx of this.ringFx) {
       fx.life -= dt;
     }
   }
@@ -1865,6 +1953,27 @@ export class GameEngine {
         color,
       });
     }
+  }
+
+  private spawnRing(
+    x: number,
+    y: number,
+    startRadius: number,
+    endRadius: number,
+    color: string,
+    life: number,
+    lineWidth: number,
+  ) {
+    this.ringFx.push({
+      x,
+      y,
+      life,
+      maxLife: life,
+      startRadius,
+      endRadius,
+      color,
+      lineWidth,
+    });
   }
 
   private damageCircle(
@@ -1906,7 +2015,8 @@ export class GameEngine {
       this.player.manualLanceLevel <= 0 ||
       this.player.manualLanceCooldown > 0 ||
       this.pausedForUpgrade ||
-      this.gameOver
+      this.gameOver ||
+      this.gameCleared
     ) {
       return;
     }
@@ -1940,23 +2050,62 @@ export class GameEngine {
     if (!Number.isFinite(bestDistance)) return;
 
     const level = this.player.manualLanceLevel;
+    const evolved = this.evolvedSkills.has('stormLance');
     const aim = normalize(targetX - this.player.x, targetY - this.player.y);
-    this.player.manualLanceCooldown = Math.max(0.38, 1.22 - level * 0.12);
+    this.player.manualLanceCooldown =
+      Math.max(0.38, 1.22 - level * 0.12) * (evolved ? 0.72 : 1);
+
     this.bullets.push({
       x: this.player.x + aim.x * 16,
       y: this.player.y + aim.y * 16,
-      vx: aim.x * (860 + level * 55),
-      vy: aim.y * (860 + level * 55),
-      radius: 7 + level * 0.8,
+      vx: aim.x * (860 + level * 55) * (evolved ? 1.18 : 1),
+      vy: aim.y * (860 + level * 55) * (evolved ? 1.18 : 1),
+      radius: 7 + level * 0.8 + (evolved ? 2.5 : 0),
       life: 1.05 + level * 0.08,
-      damage: this.player.damage * (2.05 + level * 0.46),
-      pierce: 5 + level * 2,
+      damage:
+        this.player.damage *
+        (2.05 + level * 0.46) *
+        (evolved ? 1.35 : 1),
+      pierce: 5 + level * 2 + (evolved ? 5 : 0),
       hit: new Set<number>(),
       critical: false,
       style: 'LANCE',
     });
-    this.spawnParticles(this.player.x, this.player.y, '#ffffff', 12, 100);
-    this.screenShake = Math.max(this.screenShake, 2);
+
+    if (evolved) {
+      const thunderDamage = this.player.damage * 1.2;
+      this.damageCircle(targetX, targetY, 72, thunderDamage);
+      for (let i = 0; i < 2; i += 1) {
+        this.lightningFx.push({
+          x1: targetX + randomRange(-90, 90),
+          y1: Math.max(0, targetY - randomRange(360, 520)),
+          x2: targetX,
+          y2: targetY,
+          life: 0.22,
+          maxLife: 0.22,
+          color: '#d9f7ff',
+        });
+      }
+      this.spawnRing(targetX, targetY, 8, 82, '#d9f7ff', 0.28, 4);
+    }
+
+    this.spawnParticles(
+      this.player.x,
+      this.player.y,
+      evolved ? '#d9f7ff' : '#ffffff',
+      evolved ? 26 : 16,
+      evolved ? 190 : 125,
+    );
+    this.spawnRing(
+      this.player.x,
+      this.player.y,
+      8,
+      evolved ? 62 : 42,
+      evolved ? '#d9f7ff' : '#ffffff',
+      0.22,
+      evolved ? 6 : 4,
+    );
+    this.screenShake = Math.max(this.screenShake, evolved ? 5.5 : 3.2);
   }
 
   private getLightningCooldownDuration() {
@@ -1968,29 +2117,83 @@ export class GameEngine {
       this.player.lightningLevel <= 0 ||
       this.player.lightningCooldown > 0 ||
       this.pausedForUpgrade ||
-      this.gameOver
+      this.gameOver ||
+      this.gameCleared
     ) {
       return;
     }
 
     const level = this.player.lightningLevel;
+    const evolved = this.evolvedSkills.has('stormLance');
     const x = clamp(this.aimX, 25, WORLD_WIDTH - 25);
     const y = clamp(this.aimY, 25, WORLD_HEIGHT - 25);
-    const radius = 88 + level * 13;
-    const damage = 72 + level * 34 + this.player.damage * 0.9;
-    this.player.lightningCooldown = this.getLightningCooldownDuration();
+    const radius = (88 + level * 13) * (evolved ? 1.18 : 1);
+    const damage =
+      (72 + level * 34 + this.player.damage * 0.9) *
+      (evolved ? 1.25 : 1);
+
+    this.player.lightningCooldown =
+      this.getLightningCooldownDuration() * (evolved ? 0.82 : 1);
     this.damageCircle(x, y, radius, damage);
-    this.lightningFx.push({
-      x1: x + randomRange(-35, 35),
-      y1: Math.max(0, y - 520),
-      x2: x,
-      y2: y,
-      life: 0.32,
-      maxLife: 0.32,
-      color: '#d9f7ff',
-    });
-    this.spawnParticles(x, y, '#d9f7ff', 34, 210);
-    this.screenShake = Math.max(this.screenShake, 11);
+
+    const bolts = evolved ? 4 : 2;
+    for (let i = 0; i < bolts; i += 1) {
+      this.lightningFx.push({
+        x1: x + randomRange(-120, 120),
+        y1: Math.max(0, y - randomRange(430, 620)),
+        x2: x + randomRange(-8, 8),
+        y2: y + randomRange(-8, 8),
+        life: 0.38,
+        maxLife: 0.38,
+        color: evolved ? '#ffffff' : '#d9f7ff',
+      });
+    }
+
+    if (evolved) {
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i / 8) * TAU;
+        this.bullets.push({
+          x,
+          y,
+          vx: Math.cos(angle) * 740,
+          vy: Math.sin(angle) * 740,
+          radius: 6,
+          life: 0.82,
+          damage: this.player.damage * 1.35,
+          pierce: 3,
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
+        });
+      }
+    }
+
+    this.spawnParticles(
+      x,
+      y,
+      evolved ? '#ffffff' : '#d9f7ff',
+      evolved ? 58 : 40,
+      evolved ? 270 : 225,
+    );
+    this.spawnRing(
+      x,
+      y,
+      10,
+      radius * 1.15,
+      evolved ? '#ffffff' : '#d9f7ff',
+      0.42,
+      evolved ? 10 : 7,
+    );
+    this.spawnRing(
+      x,
+      y,
+      22,
+      radius * 0.72,
+      '#5beaff',
+      0.3,
+      4,
+    );
+    this.screenShake = Math.max(this.screenShake, evolved ? 16 : 12);
   }
 
   private triggerMeteor() {
@@ -2004,7 +2207,10 @@ export class GameEngine {
     } else {
       for (const fly of this.flies) {
         if (fly.hp <= 0) continue;
-        const score = Math.hypot(fly.x - this.player.x, fly.y - this.player.y);
+        const score = Math.hypot(
+          fly.x - this.player.x,
+          fly.y - this.player.y,
+        );
         if (score < bestScore) {
           bestScore = score;
           x = fly.x;
@@ -2014,19 +2220,41 @@ export class GameEngine {
     }
 
     const level = this.player.meteorLevel;
-    const radius = 112 + level * 12;
-    this.damageCircle(x, y, radius, 66 + level * 30);
-    this.lightningFx.push({
-      x1: x - 150,
-      y1: y - 420,
-      x2: x,
-      y2: y,
-      life: 0.27,
-      maxLife: 0.27,
-      color: '#ffcf57',
-    });
-    this.spawnParticles(x, y, '#ffcf57', 30, 185);
-    this.screenShake = Math.max(this.screenShake, 8);
+    const evolved = this.evolvedSkills.has('ionCataclysm');
+    const radius = (112 + level * 12) * (evolved ? 1.28 : 1);
+    const damage = (66 + level * 30) * (evolved ? 1.5 : 1);
+    this.damageCircle(x, y, radius, damage);
+
+    const trails = evolved ? 4 : 2;
+    for (let i = 0; i < trails; i += 1) {
+      this.lightningFx.push({
+        x1: x + randomRange(-220, 120),
+        y1: y - randomRange(390, 560),
+        x2: x,
+        y2: y,
+        life: 0.3,
+        maxLife: 0.3,
+        color: evolved ? '#ffffff' : '#ffcf57',
+      });
+    }
+
+    this.spawnParticles(
+      x,
+      y,
+      evolved ? '#ffffff' : '#ffcf57',
+      evolved ? 55 : 34,
+      evolved ? 280 : 205,
+    );
+    this.spawnRing(
+      x,
+      y,
+      16,
+      radius,
+      evolved ? '#d9f7ff' : '#ffcf57',
+      0.48,
+      evolved ? 9 : 6,
+    );
+    this.screenShake = Math.max(this.screenShake, evolved ? 14 : 9);
   }
 
   private findNearestFly(
