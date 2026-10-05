@@ -132,11 +132,34 @@ export type UpgradeKey =
   | 'ricochet'
   | 'execute';
 
+export type EvolutionKey =
+  | 'stormLance'
+  | 'ionCataclysm'
+  | 'neuralSingularity';
+
+export type SkillKey = UpgradeKey | EvolutionKey;
+export type SkillRarity = 'COMMON' | 'RARE' | 'NEURAL' | 'EVOLUTION';
+
 export type UpgradeOption = {
-  key: UpgradeKey;
+  key: SkillKey;
   title: string;
   description: string;
-  rarity: 'COMMON' | 'RARE' | 'NEURAL';
+  detail: string;
+  rarity: SkillRarity;
+  level: number;
+  nextLevel: number;
+  maxLevel: number;
+  isEvolution?: boolean;
+  requirements?: string[];
+};
+
+export type OwnedSkill = {
+  key: SkillKey;
+  title: string;
+  level: number;
+  maxLevel: number;
+  rarity: SkillRarity;
+  evolved?: boolean;
 };
 
 export type SelectedFly = {
@@ -214,10 +237,20 @@ export type HudSnapshot = {
   boss: BossHud | null;
   connectome: WholeBrainSnapshot;
   abilities: AbilityHud;
+  skills: OwnedSkill[];
+  bossesDefeated: number;
+  bossesTotal: number;
 };
 
 export type GameOverSnapshot = {
   kills: number;
   wave: number;
   seconds: number;
+};
+
+export type GameClearSnapshot = {
+  kills: number;
+  wave: number;
+  seconds: number;
+  bossesDefeated: number;
 };
