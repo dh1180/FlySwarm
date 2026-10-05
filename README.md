@@ -13,7 +13,7 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - 가장 가까운 적 자동 공격
 - 경험치 Orb / 레벨업
 - XP Orb가 Magnet 반경 안에 들어오면 즉시 획득
-- 31종 레벨업 Mutation
+- 31종 레벨업 Mutation + 3종 Evolution Skill
 - 웨이브 증가 및 군집 진화
 - 초파리 개체별 personality genome
 - Spatial Hash 기반 근접 탐색
@@ -21,7 +21,10 @@ FlySwarm은 뱀서류 생존 게임에 두 종류의 적 AI를 결합한 브라�
 - 3웨이브부터 Full-Connectome Boss
 - 보스 neural output 실시간 HUD
 - 일반 초파리 Agent Inspector
-- Game Over / Restart
+- 획득 스킬 종류 / 현재 레벨 / MAX 상태 HUD
+- Max Skill 조합 기반 Evolution/Fusion
+- 3종 Full-Connectome Boss 전부 처치 시 Game Clear
+- Game Over / Restart / Clear
 
 ## 🧠 일반 초파리 AI
 
@@ -226,9 +229,55 @@ Main Game Thread
 - Recurrent Circuit — 적중 시 추가 투사체 ricochet
 - Apoptosis Trigger — 저체력 적 추가 처형 피해
 
+## 🧬 Skill Level / Evolution
+
+모든 기본 Mutation에는 최대 레벨이 있으며, Max Level에 도달한 스킬은 일반 레벨업 선택지에서 제거됩니다.
+
+레벨업 카드에는 다음 정보를 표시합니다.
+
+- 현재 레벨 → 다음 레벨
+- 최대 레벨
+- 다음 레벨에서 정확히 증가하는 수치
+- Evolution 후보의 경우 필요한 MAX 스킬 조합
+
+현재 Evolution Recipe:
+
+| Evolution | Requirement | Result |
+|---|---|---|
+| **THUNDER LANCE** | Motor Lance MAX + Cortical Thunder MAX | Auto Lance에 낙뢰 추가, Thunder 사용 시 8방향 Lance 발사 |
+| **ION CATACLYSM** | Synaptic Carpet MAX + Glial Meteor MAX | 장판 주기 번개 폭발 + 강화 Meteor |
+| **NEURAL SINGULARITY** | Action Potential Nova MAX + Satellite Neuron MAX | 대형 Nova + 적 흡인 + 강화 Orbital |
+
+Evolution을 획득해도 원본 두 스킬의 MAX 효과는 사라지지 않으며, 융합 효과가 추가됩니다.
+
+## 🏁 Clear / Difficulty
+
+한 판의 최종 목표는 서로 다른 Full-Connectome Boss 세 종류를 모두 처치하는 것입니다.
+
+```text
+NEURAL HUNTER
+      ↓
+STORM BRAIN
+      ↓
+SWARM QUEEN
+      ↓
+GAME CLEAR
+```
+
+현재 밸런스는 31종 기본 스킬과 Evolution 성장을 고려해 조정했습니다.
+
+- Wave 주기: 28초 → 32초
+- 초반 Enemy Cap 및 Spawn 증가량 완화
+- 일반 적 HP 증가량 완화
+- Spitter / Bomber 피해량 완화
+- Boss HP / Contact / Pulse / Projectile Scaling 완화
+- BRUTE / SPITTER / BOMBER는 더 많은 XP 지급
+- Boss 처치 XP 보상 증가
+- 후반 레벨업 XP 요구량 완화
+
 ## ✨ Combat VFX / Controls
 
-- Mouse / touch world-space aiming
+- Mouse / touch world-space aiming with fullscreen letterbox correction
 - Motor Lance: 획득 후 자동 주기 발사
 - `E` 또는 우클릭: Cortical Thunder
 - 모바일: 좌측 가상 조이스틱 이동 + 우측 THUNDER 버튼
