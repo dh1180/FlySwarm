@@ -22,7 +22,11 @@ const WAVE_SECONDS = 28;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
+type BossKind = 'NEURAL_HUNTER' | 'STORM_BRAIN' | 'SWARM_QUEEN';
+
 type Boss = {
+  kind: BossKind;
+  name: string;
   x: number;
   y: number;
   vx: number;
@@ -32,6 +36,48 @@ type Boss = {
   maxHp: number;
   heading: number;
   pulseCooldown: number;
+  specialCooldown: number;
+};
+
+type EnemyShot = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  radius: number;
+  damage: number;
+  life: number;
+  color: string;
+};
+
+type DamageField = {
+  x: number;
+  y: number;
+  radius: number;
+  life: number;
+  maxLife: number;
+  damage: number;
+};
+
+type Particle = {
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  size: number;
+  color: string;
+};
+
+type LightningFx = {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  life: number;
+  maxLife: number;
+  color: string;
 };
 
 const clamp = (value: number, min: number, max: number) =>
@@ -73,6 +119,12 @@ const upgradeCatalog: UpgradeOption[] = [
   { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력에서 이동/공격 속도 증가', rarity: 'RARE' },
   { key: 'bulletLife', title: 'Long Axon', description: '투사체 생존시간 +30%', rarity: 'COMMON' },
   { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속을 동시에 강화', rarity: 'NEURAL' },
+  { key: 'manualLance', title: 'Voluntary Motor Lance', description: 'SPACE: 마우스 방향으로 강력한 관통 신경탄 발사', rarity: 'NEURAL' },
+  { key: 'targetLightning', title: 'Cortical Thunder', description: 'E: 마우스 위치에 직접 낙뢰 지정', rarity: 'NEURAL' },
+  { key: 'synapticField', title: 'Synaptic Carpet', description: '주기적으로 조준 방향에 지속 피해 장판 생성', rarity: 'NEURAL' },
+  { key: 'meteor', title: 'Glial Meteor', description: '주기적으로 강한 적 위치에 광역 낙하 공격', rarity: 'NEURAL' },
+  { key: 'ricochet', title: 'Recurrent Circuit', description: '명중 시 확률적으로 추가 투사체가 주변 적에게 튕김', rarity: 'RARE' },
+  { key: 'execute', title: 'Apoptosis Trigger', description: '체력이 낮은 적에게 추가 처형 피해', rarity: 'RARE' },
 ];
 
 type Callbacks = {
@@ -111,11 +163,22 @@ export class GameEngine {
   private bossPolicyDrive = 0;
   private bossRewardBuffer = 0;
   private bossPenaltyBuffer = 0;
+  private bossIndex = 0;
+  private aimX = WORLD_WIDTH / 2 + 1;
+  private aimY = WORLD_HEIGHT / 2;
+  private lastMoveX = 1;
+  private lastMoveY = 0;
+  private screenShake = 0;
+  private damageFlash = 0;
 
   private player: Player = this.makePlayer();
   private flies: FlyAgent[] = [];
   private bullets: Bullet[] = [];
   private orbs: Orb[] = [];
+  private enemyShots: EnemyShot[] = [];
+  private damageFields: DamageField[] = [];
+  private particles: Particle[] = [];
+  private lightningFx: LightningFx[] = [];
   private boss: Boss | null = null;
   private swarmGenome: Genome = {
     aggression: 0.56,
@@ -138,6 +201,8 @@ export class GameEngine {
     window.addEventListener('keydown', this.onKeyDown);
     window.addEventListener('keyup', this.onKeyUp);
     canvas.addEventListener('click', this.onCanvasClick);
+    canvas.addEventListener('mousemove', this.onCanvasMove);
+    canvas.addEventListener('contextmenu', this.onContextMenu);
     this.emitHud();
     this.render();
   }
@@ -156,6 +221,10 @@ export class GameEngine {
     this.flies = [];
     this.bullets = [];
     this.orbs = [];
+    this.enemyShots = [];
+    this.damageFields = [];
+    this.particles = [];
+    this.lightningFx = [];
     this.boss = null;
     this.time = 0;
     this.hudTimer = 0;
@@ -174,6 +243,13 @@ export class GameEngine {
     this.bossPolicyDrive = 0;
     this.bossRewardBuffer = 0;
     this.bossPenaltyBuffer = 0;
+    this.bossIndex = 0;
+    this.aimX = WORLD_WIDTH / 2 + 1;
+    this.aimY = WORLD_HEIGHT / 2;
+    this.lastMoveX = 1;
+    this.lastMoveY = 0;
+    this.screenShake = 0;
+    this.damageFlash = 0;
     this.pausedForUpgrade = false;
     this.gameOver = false;
     this.swarmGenome = {
@@ -290,6 +366,26 @@ export class GameEngine {
         this.player.fireInterval = Math.max(0.07, this.player.fireInterval * 0.9);
         this.player.speed *= 1.06;
         break;
+      case 'manualLance':
+        this.player.manualLanceLevel = Math.min(5, this.player.manualLanceLevel + 1);
+        break;
+      case 'targetLightning':
+        this.player.lightningLevel = Math.min(5, this.player.lightningLevel + 1);
+        break;
+      case 'synapticField':
+        this.player.fieldLevel = Math.min(5, this.player.fieldLevel + 1);
+        this.player.fieldTimer = 0;
+        break;
+      case 'meteor':
+        this.player.meteorLevel = Math.min(5, this.player.meteorLevel + 1);
+        this.player.meteorTimer = 0;
+        break;
+      case 'ricochet':
+        this.player.ricochetLevel = Math.min(5, this.player.ricochetLevel + 1);
+        break;
+      case 'execute':
+        this.player.executeLevel = Math.min(5, this.player.executeLevel + 1);
+        break;
     }
     this.pausedForUpgrade = false;
   }
@@ -301,6 +397,8 @@ export class GameEngine {
     window.removeEventListener('keydown', this.onKeyDown);
     window.removeEventListener('keyup', this.onKeyUp);
     this.canvas.removeEventListener('click', this.onCanvasClick);
+    this.canvas.removeEventListener('mousemove', this.onCanvasMove);
+    this.canvas.removeEventListener('contextmenu', this.onContextMenu);
   }
 
   private makePlayer(): Player {
@@ -344,6 +442,16 @@ export class GameEngine {
       shieldRegen: 0,
       shieldCooldown: 0,
       adrenaline: 0,
+      manualLanceLevel: 0,
+      manualLanceCooldown: 0,
+      lightningLevel: 0,
+      lightningCooldown: 0,
+      fieldLevel: 0,
+      fieldTimer: 0,
+      meteorLevel: 0,
+      meteorTimer: 0,
+      ricochetLevel: 0,
+      executeLevel: 0,
     };
   }
 
