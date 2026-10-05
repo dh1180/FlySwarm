@@ -1,4 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import {
+  useEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+} from 'react';
 import { GameEngine } from '../game/GameEngine';
 import type {
   GameOverSnapshot,
@@ -26,6 +31,13 @@ const initialHud: HudSnapshot = {
   },
   selected: null,
   boss: null,
+  abilities: {
+    autoLanceLevel: 0,
+    lightningLevel: 0,
+    lightningCooldown: 0,
+    lightningMaxCooldown: 0,
+    xpPickupRadius: 115,
+  },
   connectome: {
     status: 'idle',
     progress: 0,
@@ -51,12 +63,14 @@ const pct = (value: number) => `${Math.round(value * 100)}%`;
 export default function FlySwarmGame() {
   const shellRef = useRef<HTMLElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const joystickRef = useRef<HTMLDivElement | null>(null);
   const engineRef = useRef<GameEngine | null>(null);
   const [started, setStarted] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
   const [hud, setHud] = useState(initialHud);
   const [upgrades, setUpgrades] = useState<UpgradeOption[]>([]);
   const [gameOver, setGameOver] = useState<GameOverSnapshot | null>(null);
+  const [joystick, setJoystick] = useState({ x: 0, y: 0 });
 
   useEffect(() => {
     if (!canvasRef.current) return;
@@ -108,6 +122,62 @@ export default function FlySwarmGame() {
       // Browser or embedding context may disallow fullscreen.
     }
   };
+
+  const updateJoystick = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const el = joystickRef.current;
+    if (!el) return;
+
+    const rect = el.getBoundingClientRect();
+    let x =
+      (event.clientX - (rect.left + rect.width / 2)) /
+      (rect.width / 2);
+    let y =
+      (event.clientY - (rect.top + rect.height / 2)) /
+      (rect.height / 2);
+
+    const length = Math.hypot(x, y);
+    if (length > 1) {
+      x /= length;
+      y /= length;
+    }
+
+    setJoystick({ x, y });
+    engineRef.current?.setTouchMove(x, y);
+  };
+
+  const startJoystick = (event: ReactPointerEvent<HTMLDivElement>) => {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    updateJoystick(event);
+  };
+
+  const endJoystick = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    setJoystick({ x: 0, y: 0 });
+    engineRef.current?.setTouchMove(0, 0);
+  };
+
+  const castMobileThunder = () => {
+    engineRef.current?.castLightningAtAim();
+  };
+
+  const lightningReady =
+    hud.abilities.lightningLevel > 0 &&
+    hud.abilities.lightningCooldown <= 0;
+  const lightningProgress =
+    hud.abilities.lightningLevel <= 0 ||
+    hud.abilities.lightningMaxCooldown <= 0
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            1,
+            1 -
+              hud.abilities.lightningCooldown /
+                hud.abilities.lightningMaxCooldown,
+          ),
+        );
 
   const brainLabel =
     hud.connectome.status === 'ready'
@@ -181,9 +251,60 @@ export default function FlySwarmGame() {
           <div className="combat-controls">
             <span>MOVE <b>WASD</b></span>
             <span>AIM <b>MOUSE</b></span>
-            <span>LANCE <b>SPACE</b></span>
+            <span>LANCE <b>AUTO</b></span>
             <span>THUNDER <b>E / RMB</b></span>
           </div>
+        )}
+
+        {started && !gameOver && (
+          <>
+            <div
+              ref={joystickRef}
+              className="mobile-joystick"
+              onPointerDown={startJoystick}
+              onPointerMove={(event) => {
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  updateJoystick(event);
+                }
+              }}
+              onPointerUp={endJoystick}
+              onPointerCancel={endJoystick}
+            >
+              <span
+                className="mobile-joystick-knob"
+                style={{
+                  transform: `translate(${joystick.x * 34}px, ${joystick.y * 34}px)`,
+                }}
+              />
+            </div>
+
+            <div className="ability-dock">
+              <div className="xp-pickup-readout">
+                XP PICKUP <b>{Math.round(hud.abilities.xpPickupRadius)}</b>
+              </div>
+              <button
+                className={`thunder-button ${lightningReady ? 'ready' : ''}`}
+                onClick={castMobileThunder}
+                disabled={!lightningReady}
+              >
+                <span className="thunder-icon">⚡</span>
+                <span className="thunder-copy">
+                  <b>THUNDER</b>
+                  <small>
+                    {hud.abilities.lightningLevel <= 0
+                      ? 'LOCKED'
+                      : lightningReady
+                        ? 'READY'
+                        : `${hud.abilities.lightningCooldown.toFixed(1)}s`}
+                  </small>
+                </span>
+                <i
+                  className="thunder-cooldown-fill"
+                  style={{ transform: `scaleX(${lightningProgress})` }}
+                />
+              </button>
+            </div>
+          </>
         )}
 
         {!started && (
@@ -193,7 +314,7 @@ export default function FlySwarmGame() {
             <h2>SURVIVE<br/>THE SWARM.</h2>
             <p className="overlay-copy">
               WASD / 방향키로 이동하세요. 기본 공격은 자동입니다.<br/>
-              수동 Mutation 획득 후 마우스로 조준하고 SPACE로 Lance, E 또는 우클릭으로 지정 낙뢰를 사용할 수 있습니다.<br/>
+              Motor Lance는 획득 후 자동으로 가장 가까운 적을 주기적으로 공격합니다. Cortical Thunder는 마우스/터치로 위치를 지정한 뒤 E·우클릭·모바일 THUNDER 버튼으로 사용합니다.<br/>
               일반몹은 5개 전투 아키타입의 Utility AI, 보스 3종은 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
               보스는 120,000-step 사전학습 정책에서 시작하고, 실제 플레이에서는 도파민형 보상으로 계속 미세조정됩니다.<br/>
               플레이어에게 피해를 주면 보상, 피격되면 패널티를 받으며 학습값은 다음 보스전에도 이어집니다.
