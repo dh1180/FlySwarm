@@ -642,6 +642,7 @@ export class GameEngine {
       case 'execute':
         return `Lv ${nextLevel}: HP ${(12 + nextLevel * 3.5).toFixed(1)}% 이하 적에게 추가 피해 ${42 + nextLevel * 12}%`;
     }
+    return '';
   }
 
   private buildUpgradeOption(definition: UpgradeDefinition): UpgradeOption {
@@ -2109,7 +2110,11 @@ export class GameEngine {
   }
 
   private getLightningCooldownDuration() {
-    return Math.max(1.8, 5.7 - this.player.lightningLevel * 0.62);
+    const base = Math.max(
+      1.8,
+      5.7 - this.player.lightningLevel * 0.62,
+    );
+    return base * (this.evolvedSkills.has('stormLance') ? 0.82 : 1);
   }
 
   private castTargetLightning() {
@@ -2133,7 +2138,7 @@ export class GameEngine {
       (evolved ? 1.25 : 1);
 
     this.player.lightningCooldown =
-      this.getLightningCooldownDuration() * (evolved ? 0.82 : 1);
+      this.getLightningCooldownDuration();
     this.damageCircle(x, y, radius, damage);
 
     const bolts = evolved ? 4 : 2;
