@@ -89,6 +89,15 @@ type LightningFx = {
   color: string;
 };
 
+type BossStrike = {
+  x: number;
+  y: number;
+  timer: number;
+  maxTimer: number;
+  radius: number;
+  damage: number;
+};
+
 type RewardChest = {
   id: number;
   x: number;
@@ -140,63 +149,64 @@ const randomRange = (min: number, max: number) =>
 const copyGenome = (g: Genome): Genome => ({ ...g });
 
 const upgradeCatalog: UpgradeDefinition[] = [
-  { key: 'damage', title: 'Heavy Shot', description: '기본 투사체 피해 강화', rarity: 'COMMON', maxLevel: 5 },
-  { key: 'firerate', title: 'Synapse Rush', description: '자동 공격 속도 강화', rarity: 'COMMON', maxLevel: 5 },
-  { key: 'multishot', title: 'Split Signal', description: '동시 발사 수 증가', rarity: 'RARE', maxLevel: 4 },
-  { key: 'speed', title: 'Motor Cortex', description: '이동속도 강화', rarity: 'COMMON', maxLevel: 5 },
-  { key: 'health', title: 'Thick Skin', description: '최대 체력과 즉시 회복', rarity: 'COMMON', maxLevel: 5 },
-  { key: 'pierce', title: 'Axon Piercer', description: '투사체 관통 증가', rarity: 'RARE', maxLevel: 4 },
-  { key: 'magnet', title: 'Dopamine Field', description: '경험치 즉시 획득 반경 증가', rarity: 'COMMON', maxLevel: 5 },
-  { key: 'bulletSpeed', title: 'Fast Conduction', description: '투사체 속도 증가', rarity: 'COMMON', maxLevel: 5 },
-  { key: 'bulletSize', title: 'Giant Vesicle', description: '투사체 크기 증가', rarity: 'COMMON', maxLevel: 4 },
-  { key: 'crit', title: 'Burst Firing', description: '치명타 확률 증가', rarity: 'RARE', maxLevel: 5 },
-  { key: 'regen', title: 'Homeostasis', description: '체력 재생 증가', rarity: 'RARE', maxLevel: 5 },
-  { key: 'armor', title: 'Chitin Layer', description: '받는 피해 감소', rarity: 'RARE', maxLevel: 5 },
-  { key: 'knockback', title: 'Motor Shock', description: '적 넉백 증가', rarity: 'COMMON', maxLevel: 4 },
-  { key: 'orbital', title: 'Satellite Neuron', description: '공격 오비탈 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'nova', title: 'Action Potential Nova', description: '주기 광역 신경 펄스 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'xpGain', title: 'Memory Consolidation', description: '경험치 획득량 증가', rarity: 'RARE', maxLevel: 5 },
-  { key: 'bossDamage', title: 'Connectome Breaker', description: '보스 대상 피해 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'critPower', title: 'Spike Burst', description: '치명타 피해 배율 강화', rarity: 'RARE', maxLevel: 4 },
-  { key: 'leech', title: 'Hemolymph Leech', description: '처치 시 체력 회복', rarity: 'RARE', maxLevel: 5 },
-  { key: 'toxinAura', title: 'Neurotoxin Cloud', description: '주변 지속 피해 오라 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'chain', title: 'Chain Synapse', description: '연쇄 피해 확률과 배율 강화', rarity: 'NEURAL', maxLevel: 4 },
-  { key: 'shield', title: 'Refractory Shield', description: '재생 보호막 강화', rarity: 'RARE', maxLevel: 5 },
-  { key: 'adrenaline', title: 'Adrenaline Loop', description: '저체력 공격/이동 가속 강화', rarity: 'RARE', maxLevel: 4 },
-  { key: 'bulletLife', title: 'Long Axon', description: '투사체 수명과 사거리 증가', rarity: 'COMMON', maxLevel: 4 },
-  { key: 'overclock', title: 'Neural Overclock', description: '공격력·공속·이속 복합 강화', rarity: 'NEURAL', maxLevel: 4 },
-  { key: 'manualLance', title: 'Motor Lance', description: '자동 관통 신경탄 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'targetLightning', title: 'Cortical Thunder', description: '지정 낙뢰 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'synapticField', title: 'Synaptic Carpet', description: '지속 피해 장판 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'meteor', title: 'Glial Meteor', description: '주기 광역 낙하 공격 강화', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'ricochet', title: 'Recurrent Circuit', description: '추가 튕김탄 강화', rarity: 'RARE', maxLevel: 5 },
-  { key: 'execute', title: 'Apoptosis Trigger', description: '저체력 적 처형 피해 강화', rarity: 'RARE', maxLevel: 5 },
+  { key: 'damage', title: 'Synaptic Potentiation', description: '시냅스 전달 효율을 높여 기본 공격 피해를 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'firerate', title: 'Sodium Channel Acceleration', description: '활동전위 발생 간격을 단축해 자동 공격 속도 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'multishot', title: 'Axon Branching', description: '축삭 분지 수를 늘려 동시 발사 수 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'speed', title: 'Motor Neuron Recruitment', description: '운동 뉴런 동원을 높여 이동속도 강화', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'health', title: 'Chitin Homeostasis', description: '외골격 항상성 강화로 최대 체력과 즉시 회복 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'pierce', title: 'Axonal Penetration', description: '축삭 신호 관통 능력 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'magnet', title: 'Chemotaxis Gradient', description: '화학주성 감지 범위를 넓혀 경험치 획득 반경 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'bulletSpeed', title: 'Saltatory Conduction', description: '신호 전도 속도를 높여 투사체 속도 증가', rarity: 'COMMON', maxLevel: 5 },
+  { key: 'bulletSize', title: 'Vesicle Hypertrophy', description: '소포 크기 증가로 투사체 크기 강화', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'crit', title: 'Spike Synchrony', description: '동기화된 신경 스파이크로 치명타 확률 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'regen', title: 'Tissue Homeostasis', description: '조직 항상성 회복으로 체력 재생 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'armor', title: 'Chitin Reinforcement', description: '키틴층 보강으로 받는 피해 감소', rarity: 'RARE', maxLevel: 5 },
+  { key: 'knockback', title: 'Giant Fiber Reflex', description: '거대섬유 반사 회로로 적 넉백 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'orbital', title: 'Synaptic Vesicle Orbit', description: '신경 소포 노드가 플레이어 주위를 회전하며 공격', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'nova', title: 'Action Potential Burst', description: '주기적으로 활동전위 파동을 방출해 광역 피해', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'xpGain', title: 'Memory Consolidation', description: '기억 고착 효율을 높여 경험치 획득량 증가', rarity: 'RARE', maxLevel: 5 },
+  { key: 'bossDamage', title: 'Connectome Disruption', description: '복잡한 신경망 연결을 교란해 보스 피해 강화', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'critPower', title: 'Spike Amplification', description: '고진폭 신경 스파이크로 치명타 피해 증가', rarity: 'RARE', maxLevel: 4 },
+  { key: 'leech', title: 'Hemolymph Recycling', description: '처치 시 혈림프 재활용으로 체력 회복', rarity: 'RARE', maxLevel: 5 },
+  { key: 'toxinAura', title: 'Neurotoxin Gradient', description: '주변에 신경독 농도 구배를 형성해 지속 피해', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'chain', title: 'Gap Junction Cascade', description: '신호가 인접 표적으로 연쇄 전달될 확률 증가', rarity: 'NEURAL', maxLevel: 4 },
+  { key: 'shield', title: 'Refractory Membrane', description: '불응기 막전위를 모사한 재생 보호막 강화', rarity: 'RARE', maxLevel: 5 },
+  { key: 'adrenaline', title: 'Octopamine Surge', description: '곤충 신경조절물질 옥토파민으로 저체력 성능 강화', rarity: 'RARE', maxLevel: 4 },
+  { key: 'bulletLife', title: 'Axon Extension', description: '축삭 연장으로 투사체 수명과 사거리 증가', rarity: 'COMMON', maxLevel: 4 },
+  { key: 'overclock', title: 'Neuromodulator Overdrive', description: '신경조절물질 과활성으로 공격·공속·이속 복합 강화', rarity: 'NEURAL', maxLevel: 4 },
+  { key: 'manualLance', title: 'Axonal Spike', description: '가장 가까운 적을 향해 자동 관통 스파이크 발사', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'synapticField', title: 'Glial Matrix', description: '전방에 지속 피해를 주는 글리아성 미세환경 형성', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'meteor', title: 'Calcium Cascade', description: '표적 위치에 칼슘 신호 폭주를 일으켜 광역 피해', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'ricochet', title: 'Recurrent Circuit', description: '재귀 회로처럼 추가 투사체가 주변 적으로 재전달', rarity: 'RARE', maxLevel: 5 },
+  { key: 'execute', title: 'Apoptotic Threshold', description: '저체력 적의 세포사멸 임계점을 이용해 추가 피해', rarity: 'RARE', maxLevel: 5 },
 ];
 
 const evolutionCatalog: EvolutionDefinition[] = [
-  {
-    key: 'stormLance',
-    title: 'THUNDER LANCE',
-    description: 'Motor Lance + Cortical Thunder 융합',
-    detail: '자동 Lance가 표적에 낙뢰를 동반하고, 지정 낙뢰가 8방향 Lance를 방출합니다.',
-    requirements: ['manualLance', 'targetLightning'],
-  },
-  {
-    key: 'ionCataclysm',
-    title: 'ION CATACLYSM',
-    description: 'Synaptic Carpet + Glial Meteor 융합',
-    detail: '장판이 주기적으로 번개 폭발을 일으키고 Meteor의 광역 피해와 충격파가 강화됩니다.',
-    requirements: ['synapticField', 'meteor'],
-  },
-  {
-    key: 'neuralSingularity',
-    title: 'NEURAL SINGULARITY',
-    description: 'Action Potential Nova + Satellite Neuron 융합',
-    detail: 'Nova 범위·피해가 크게 증가하고 주변 적을 끌어당기며 오비탈 피해도 증폭됩니다.',
-    requirements: ['nova', 'orbital'],
-  },
+  { key: 'ganglionResonance', title: 'GANGLION RESONANCE', description: 'Synaptic Vesicle Orbit + Action Potential Burst', detail: '회전 노드가 Nova와 공명해 Burst 범위와 오비탈 피해가 함께 증폭됩니다.', requirements: ['orbital', 'nova'] },
+  { key: 'vesicleSecretionHalo', title: 'VESICLE SECRETION HALO', description: 'Synaptic Vesicle Orbit + Neurotoxin Gradient', detail: '회전 소포가 신경독을 확산시켜 오비탈 주변에 독성 피해를 동반합니다.', requirements: ['orbital', 'toxinAura'] },
+  { key: 'axonalSatellite', title: 'AXONAL SATELLITE', description: 'Synaptic Vesicle Orbit + Axonal Spike', detail: '오비탈 노드가 축삭 스파이크를 보조하고 Spike의 관통·속도·충격 범위를 강화합니다.', requirements: ['orbital', 'manualLance'] },
+  { key: 'synapticLattice', title: 'SYNAPTIC LATTICE', description: 'Synaptic Vesicle Orbit + Glial Matrix', detail: '오비탈 노드와 글리아 장판이 연결되어 Matrix DPS와 오비탈 피해가 함께 증가합니다.', requirements: ['orbital', 'synapticField'] },
+  { key: 'glialOrbitalCascade', title: 'GLIAL ORBITAL CASCADE', description: 'Synaptic Vesicle Orbit + Calcium Cascade', detail: '칼슘 폭주가 오비탈 노드를 자극해 추가 충격파와 오비탈 증폭을 발생시킵니다.', requirements: ['orbital', 'meteor'] },
+  { key: 'depolarizationToxinBurst', title: 'DEPOLARIZATION TOXIN BURST', description: 'Action Potential Burst + Neurotoxin Gradient', detail: '활동전위 Burst가 신경독 구배를 순간 증폭해 넓은 독성 파동을 만듭니다.', requirements: ['nova', 'toxinAura'] },
+  { key: 'spikePropagation', title: 'SPIKE PROPAGATION', description: 'Action Potential Burst + Axonal Spike', detail: 'Axonal Spike가 적중 지점에서 소형 활동전위 Burst를 유발합니다.', requirements: ['nova', 'manualLance'] },
+  { key: 'ganglionWavefront', title: 'GANGLION WAVEFRONT', description: 'Action Potential Burst + Glial Matrix', detail: 'Burst가 지나간 자리에 글리아 Matrix를 남겨 광역 피해와 지속 피해를 연결합니다.', requirements: ['nova', 'synapticField'] },
+  { key: 'calciumWave', title: 'CALCIUM WAVE', description: 'Action Potential Burst + Calcium Cascade', detail: '칼슘 폭주 충격이 추가 Burst를 발생시켜 이중 광역 파동을 만듭니다.', requirements: ['nova', 'meteor'] },
+  { key: 'venomAxon', title: 'VENOM AXON', description: 'Neurotoxin Gradient + Axonal Spike', detail: 'Axonal Spike가 진행 경로와 표적 지점에 신경독성 손상을 남깁니다.', requirements: ['toxinAura', 'manualLance'] },
+  { key: 'neuroglialMatrix', title: 'NEUROGLIAL MATRIX', description: 'Neurotoxin Gradient + Glial Matrix', detail: '글리아 Matrix가 신경독 저장소가 되어 장판 DPS와 범위를 크게 강화합니다.', requirements: ['toxinAura', 'synapticField'] },
+  { key: 'hemolymphCascade', title: 'HEMOLYMPH CASCADE', description: 'Neurotoxin Gradient + Calcium Cascade', detail: '칼슘 폭주가 독성 미세환경을 남겨 폭발 이후에도 지속 피해를 줍니다.', requirements: ['toxinAura', 'meteor'] },
+  { key: 'axonMesh', title: 'AXON MESH', description: 'Axonal Spike + Glial Matrix', detail: 'Spike가 적중 지점마다 짧은 글리아 Matrix를 생성해 관통 공격과 장판을 결합합니다.', requirements: ['manualLance', 'synapticField'] },
+  { key: 'synapticBarrage', title: 'SYNAPTIC BARRAGE', description: 'Axonal Spike + Calcium Cascade', detail: '칼슘 폭주 지점에서 방사형 Axonal Spike가 발사되어 광역 폭발과 관통탄을 결합합니다.', requirements: ['manualLance', 'meteor'] },
+  { key: 'glialCalciumStorm', title: 'GLIAL CALCIUM STORM', description: 'Glial Matrix + Calcium Cascade', detail: 'Matrix 내부에서 반복적인 칼슘 폭주가 발생하고 Cascade의 범위와 충격이 강화됩니다.', requirements: ['synapticField', 'meteor'] },
 ];
 
+const offensiveSkillKeys: UpgradeKey[] = [
+  'orbital',
+  'nova',
+  'toxinAura',
+  'manualLance',
+  'synapticField',
+  'meteor',
+];
 
 type Callbacks = {
   onHud: (hud: HudSnapshot) => void;
@@ -252,6 +262,7 @@ export class GameEngine {
   private bullets: Bullet[] = [];
   private orbs: Orb[] = [];
   private chests: RewardChest[] = [];
+  private bossStrikes: BossStrike[] = [];
   private enemyShots: EnemyShot[] = [];
   private damageFields: DamageField[] = [];
   private particles: Particle[] = [];
@@ -307,6 +318,7 @@ export class GameEngine {
     this.bullets = [];
     this.orbs = [];
     this.chests = [];
+    this.bossStrikes = [];
     this.enemyShots = [];
     this.damageFields = [];
     this.particles = [];
@@ -560,6 +572,32 @@ export class GameEngine {
         break;
     }
 
+    const immediateFusions =
+      nextLevel >= definition.maxLevel && offensiveSkillKeys.includes(key)
+        ? evolutionCatalog
+            .filter(
+              (evolution) =>
+                !this.evolvedSkills.has(evolution.key) &&
+                evolution.requirements.includes(key) &&
+                this.canEvolve(evolution),
+            )
+            .map((evolution) => this.buildEvolutionOption(evolution))
+        : [];
+
+    if (immediateFusions.length) {
+      this.pausedForUpgrade = true;
+      this.callbacks.onLevelUp(immediateFusions, {
+        source: 'FUSION_OFFER',
+        title: 'SYNAPTIC FUSION',
+        subtitle: 'TWO MAXIMUM CIRCUITS CAN MERGE',
+      });
+    } else {
+      this.pausedForUpgrade = false;
+    }
+    this.emitHud();
+  }
+
+  cancelFusionOffer() {
     this.pausedForUpgrade = false;
     this.emitHud();
   }
@@ -580,6 +618,23 @@ export class GameEngine {
         this.getUpgradeLevel(key) >= definition.maxLevel
       );
     });
+  }
+
+  private hasFusion(a: UpgradeKey, b: UpgradeKey) {
+    return evolutionCatalog.some(
+      (evolution) =>
+        this.evolvedSkills.has(evolution.key) &&
+        evolution.requirements.includes(a) &&
+        evolution.requirements.includes(b),
+    );
+  }
+
+  private fusionCountFor(key: UpgradeKey) {
+    return evolutionCatalog.filter(
+      (evolution) =>
+        this.evolvedSkills.has(evolution.key) &&
+        evolution.requirements.includes(key),
+    ).length;
   }
 
   private getUpgradeDetail(key: UpgradeKey, nextLevel: number) {
@@ -740,10 +795,6 @@ export class GameEngine {
     }
   }
 
-  castLightningAtAim() {
-    this.castTargetLightning();
-  }
-
   destroy() {
     this.running = false;
     cancelAnimationFrame(this.raf);
@@ -868,6 +919,7 @@ export class GameEngine {
     this.spatial.rebuild(this.flies);
     this.updateFlies(dt);
     this.updateBoss(dt);
+    this.updateBossStrikes(dt);
     this.updateEnemyShots(dt);
     this.spatial.rebuild(this.flies);
     this.updateShooting();
@@ -1397,16 +1449,24 @@ export class GameEngine {
             bossOwned: true,
           });
         }
-        this.lightningFx.push({
-          x1: boss.x,
-          y1: boss.y,
-          x2: this.player.x,
-          y2: this.player.y,
-          life: 0.22,
-          maxLife: 0.22,
-          color: '#b678ff',
+        this.bossStrikes.push({
+          x: this.player.x,
+          y: this.player.y,
+          timer: 0.55,
+          maxTimer: 0.55,
+          radius: 76,
+          damage: 13 + this.wave * 0.85,
         });
-        this.screenShake = Math.max(this.screenShake, 7);
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          18,
+          76,
+          '#b678ff',
+          0.55,
+          3,
+        );
+        this.screenShake = Math.max(this.screenShake, 4);
       } else if (boss.kind === 'SWARM_QUEEN') {
         boss.specialCooldown = 4.8;
         for (let i = 0; i < 7; i += 1) {
@@ -1651,17 +1711,22 @@ export class GameEngine {
 
   private updateAbilities(dt: number) {
     if (this.player.auraDamage > 0 && this.player.auraRadius > 0) {
+      const toxinFusionCount = this.fusionCountFor('toxinAura');
+      const auraDamage =
+        this.player.auraDamage * (1 + toxinFusionCount * 0.18);
+      const auraRadius =
+        this.player.auraRadius * (1 + toxinFusionCount * 0.045);
       for (const fly of this.spatial.query(
         this.player.x,
         this.player.y,
-        this.player.auraRadius,
+        auraRadius,
       )) {
         if (fly.hp <= 0) continue;
         if (
           Math.hypot(fly.x - this.player.x, fly.y - this.player.y) <=
-          this.player.auraRadius
+          auraRadius
         ) {
-          fly.hp -= this.player.auraDamage * dt;
+          fly.hp -= auraDamage * dt;
           if (fly.hp <= 0) this.killFly(fly);
         }
       }
@@ -1671,10 +1736,10 @@ export class GameEngine {
         Math.hypot(
           this.boss.x - this.player.x,
           this.boss.y - this.player.y,
-        ) <= this.player.auraRadius + this.boss.radius
+        ) <= auraRadius + this.boss.radius
       ) {
         this.damageBoss(
-          this.player.auraDamage * 0.7 * dt * this.player.bossDamage,
+          auraDamage * 0.7 * dt * this.player.bossDamage,
         );
       }
     }
@@ -1691,9 +1756,10 @@ export class GameEngine {
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
           if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + 10) {
-            const orbitalMultiplier = this.evolvedSkills.has('neuralSingularity')
-              ? 1.75
-              : 1;
+            const orbitalMultiplier =
+              1 +
+              this.fusionCountFor('orbital') * 0.18 +
+              (this.evolvedSkills.has('ganglionResonance') ? 0.28 : 0);
             fly.hp -=
               this.player.orbitalDamage *
               6 *
@@ -1711,7 +1777,9 @@ export class GameEngine {
           this.damageBoss(
             this.player.orbitalDamage *
               4 *
-              (this.evolvedSkills.has('neuralSingularity') ? 1.75 : 1) *
+              (1 +
+                this.fusionCountFor('orbital') * 0.18 +
+                (this.evolvedSkills.has('ganglionResonance') ? 0.28 : 0)) *
               dt *
               this.player.bossDamage,
           );
@@ -1724,9 +1792,16 @@ export class GameEngine {
       if (this.player.novaTimer >= this.player.novaInterval) {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
-        const singularity = this.evolvedSkills.has('neuralSingularity');
-        const radius = singularity ? 320 : 220;
-        const damage = this.player.novaDamage * (singularity ? 1.65 : 1);
+        const resonance = this.evolvedSkills.has('ganglionResonance');
+        const novaFusionCount = this.fusionCountFor('nova');
+        const radius =
+          220 *
+          (1 + novaFusionCount * 0.075) *
+          (resonance ? 1.18 : 1);
+        const damage =
+          this.player.novaDamage *
+          (1 + novaFusionCount * 0.16) *
+          (resonance ? 1.22 : 1);
         this.damageCircle(
           this.player.x,
           this.player.y,
@@ -1734,7 +1809,7 @@ export class GameEngine {
           damage,
         );
 
-        if (singularity) {
+        if (resonance) {
           for (const fly of this.flies) {
             if (fly.hp <= 0) continue;
             const dx = this.player.x - fly.x;
@@ -1748,25 +1823,43 @@ export class GameEngine {
           }
         }
 
+        if (
+          this.evolvedSkills.has('ganglionWavefront') ||
+          this.evolvedSkills.has('depolarizationToxinBurst')
+        ) {
+          const toxic =
+            this.evolvedSkills.has('depolarizationToxinBurst');
+          this.damageFields.push({
+            x: this.player.x,
+            y: this.player.y,
+            radius: toxic ? 150 : 135,
+            life: toxic ? 3.4 : 2.8,
+            maxLife: toxic ? 3.4 : 2.8,
+            damage:
+              this.player.novaDamage * (toxic ? 0.24 : 0.18),
+            pulseTimer: 0,
+          });
+        }
+
         this.spawnParticles(
           this.player.x,
           this.player.y,
-          singularity ? '#ffffff' : '#5beaff',
-          singularity ? 48 : 28,
-          singularity ? 240 : 180,
+          resonance ? '#ffffff' : '#5beaff',
+          resonance ? 48 : 28,
+          resonance ? 240 : 180,
         );
         this.spawnRing(
           this.player.x,
           this.player.y,
           24,
           radius,
-          singularity ? '#ffffff' : '#5beaff',
+          resonance ? '#ffffff' : '#5beaff',
           0.55,
-          singularity ? 9 : 5,
+          resonance ? 9 : 5,
         );
         this.screenShake = Math.max(
           this.screenShake,
-          singularity ? 11 : 5,
+          resonance ? 11 : 5,
         );
       }
     }
@@ -1787,28 +1880,37 @@ export class GameEngine {
           55,
           WORLD_HEIGHT - 55,
         );
+        const fieldFusionCount = this.fusionCountFor('synapticField');
+        const baseRadius = 82 + this.player.fieldLevel * 10;
+        const baseLife = 4.5 + this.player.fieldLevel * 0.45;
         this.damageFields.push({
           x,
           y,
-          radius: 82 + this.player.fieldLevel * 10,
-          life: 4.5 + this.player.fieldLevel * 0.45,
-          maxLife: 4.5 + this.player.fieldLevel * 0.45,
-          damage: 14 + this.player.fieldLevel * 7,
+          radius:
+            baseRadius *
+            (1 + fieldFusionCount * 0.06) *
+            (this.evolvedSkills.has('neuroglialMatrix') ? 1.18 : 1),
+          life: baseLife * (1 + fieldFusionCount * 0.05),
+          maxLife: baseLife * (1 + fieldFusionCount * 0.05),
+          damage:
+            (14 + this.player.fieldLevel * 7) *
+            (1 + fieldFusionCount * 0.16) *
+            (this.evolvedSkills.has('neuroglialMatrix') ? 1.28 : 1),
           pulseTimer: 0,
         });
         this.spawnParticles(
           x,
           y,
-          this.evolvedSkills.has('ionCataclysm') ? '#ffffff' : '#9cff47',
-          this.evolvedSkills.has('ionCataclysm') ? 28 : 18,
-          this.evolvedSkills.has('ionCataclysm') ? 145 : 90,
+          this.evolvedSkills.has('glialCalciumStorm') ? '#ffffff' : '#9cff47',
+          this.evolvedSkills.has('glialCalciumStorm') ? 28 : 18,
+          this.evolvedSkills.has('glialCalciumStorm') ? 145 : 90,
         );
         this.spawnRing(
           x,
           y,
           12,
           82 + this.player.fieldLevel * 10,
-          this.evolvedSkills.has('ionCataclysm') ? '#d9f7ff' : '#9cff47',
+          this.evolvedSkills.has('glialCalciumStorm') ? '#d9f7ff' : '#9cff47',
           0.45,
           4,
         );
@@ -1817,7 +1919,9 @@ export class GameEngine {
 
     if (this.player.meteorLevel > 0) {
       this.player.meteorTimer += dt;
-      const interval = Math.max(3.8, 7.3 - this.player.meteorLevel * 0.55);
+      const interval =
+        Math.max(3.8, 7.3 - this.player.meteorLevel * 0.55) *
+        Math.max(0.72, 1 - this.fusionCountFor('meteor') * 0.045);
       if (this.player.meteorTimer >= interval) {
         this.player.meteorTimer = 0;
         this.triggerMeteor();
@@ -1846,6 +1950,41 @@ export class GameEngine {
       color,
       bossOwned: false,
     });
+  }
+
+  private updateBossStrikes(dt: number) {
+    for (const strike of this.bossStrikes) {
+      strike.timer -= dt;
+      if (strike.timer > 0) continue;
+
+      const distance = Math.hypot(
+        this.player.x - strike.x,
+        this.player.y - strike.y,
+      );
+      if (distance <= strike.radius + this.player.radius) {
+        this.damagePlayerFromBoss(strike.damage);
+      }
+
+      for (let i = 0; i < 3; i += 1) {
+        this.lightningFx.push({
+          x1: strike.x + randomRange(-85, 85),
+          y1: Math.max(0, strike.y - randomRange(420, 620)),
+          x2: strike.x + randomRange(-7, 7),
+          y2: strike.y + randomRange(-7, 7),
+          life: 0.34,
+          maxLife: 0.34,
+          color: '#b678ff',
+        });
+      }
+      this.spawnParticles(strike.x, strike.y, '#b678ff', 34, 210);
+      this.spawnRing(strike.x, strike.y, 12, strike.radius, '#b678ff', 0.34, 7);
+      this.screenShake = Math.max(this.screenShake, 9);
+      strike.timer = -999;
+    }
+
+    this.bossStrikes = this.bossStrikes.filter(
+      (strike) => strike.timer > -100,
+    );
   }
 
   private updateEnemyShots(dt: number) {
@@ -1899,16 +2038,19 @@ export class GameEngine {
         );
       }
 
+      const fieldFusionCount = this.fusionCountFor('synapticField');
       if (
-        this.evolvedSkills.has('ionCataclysm') &&
-        field.pulseTimer >= 0.95
+        fieldFusionCount > 0 &&
+        field.pulseTimer >=
+          (this.evolvedSkills.has('glialCalciumStorm') ? 0.95 : 1.35)
       ) {
         field.pulseTimer = 0;
         this.damageCircle(
           field.x,
           field.y,
           field.radius * 0.72,
-          field.damage * 1.35,
+          field.damage *
+            (this.evolvedSkills.has('glialCalciumStorm') ? 1.35 : 0.72),
         );
         this.lightningFx.push({
           x1: field.x + randomRange(-80, 80),
@@ -2069,121 +2211,91 @@ export class GameEngine {
     if (!Number.isFinite(bestDistance)) return;
 
     const level = this.player.manualLanceLevel;
-    const evolved = this.evolvedSkills.has('stormLance');
+    const fusionCount = this.fusionCountFor('manualLance');
+    const propagation = this.evolvedSkills.has('spikePropagation');
+    const satellite = this.evolvedSkills.has('axonalSatellite');
+    const barrage = this.evolvedSkills.has('synapticBarrage');
     const aim = normalize(targetX - this.player.x, targetY - this.player.y);
+
     this.player.manualLanceCooldown =
-      Math.max(0.38, 1.22 - level * 0.12) * (evolved ? 0.72 : 1);
+      Math.max(0.38, 1.22 - level * 0.12) *
+      Math.max(0.64, 1 - fusionCount * 0.045) *
+      (propagation ? 0.82 : 1);
+
+    const speed =
+      (860 + level * 55) * (1 + fusionCount * 0.045);
+    const damage =
+      this.player.damage *
+      (2.05 + level * 0.46) *
+      (1 + fusionCount * 0.17);
+    const pierce = 5 + level * 2 + fusionCount;
 
     this.bullets.push({
       x: this.player.x + aim.x * 16,
       y: this.player.y + aim.y * 16,
-      vx: aim.x * (860 + level * 55) * (evolved ? 1.18 : 1),
-      vy: aim.y * (860 + level * 55) * (evolved ? 1.18 : 1),
-      radius: 7 + level * 0.8 + (evolved ? 2.5 : 0),
+      vx: aim.x * speed,
+      vy: aim.y * speed,
+      radius: 7 + level * 0.8 + fusionCount * 0.35,
       life: 1.05 + level * 0.08,
-      damage:
-        this.player.damage *
-        (2.05 + level * 0.46) *
-        (evolved ? 1.35 : 1),
-      pierce: 5 + level * 2 + (evolved ? 5 : 0),
+      damage,
+      pierce,
       hit: new Set<number>(),
       critical: false,
       style: 'LANCE',
     });
 
-    if (evolved) {
-      const thunderDamage = this.player.damage * 1.2;
-      this.damageCircle(targetX, targetY, 72, thunderDamage);
-      for (let i = 0; i < 2; i += 1) {
-        this.lightningFx.push({
-          x1: targetX + randomRange(-90, 90),
-          y1: Math.max(0, targetY - randomRange(360, 520)),
-          x2: targetX,
-          y2: targetY,
-          life: 0.22,
-          maxLife: 0.22,
-          color: '#d9f7ff',
+    if (satellite) {
+      for (const offset of [-0.11, 0.11]) {
+        const angle = Math.atan2(aim.y, aim.x) + offset;
+        this.bullets.push({
+          x: this.player.x,
+          y: this.player.y,
+          vx: Math.cos(angle) * speed * 0.92,
+          vy: Math.sin(angle) * speed * 0.92,
+          radius: 5.5,
+          life: 0.95,
+          damage: damage * 0.48,
+          pierce: Math.max(2, Math.floor(pierce / 2)),
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
         });
       }
-      this.spawnRing(targetX, targetY, 8, 82, '#d9f7ff', 0.28, 4);
     }
 
-    this.spawnParticles(
-      this.player.x,
-      this.player.y,
-      evolved ? '#d9f7ff' : '#ffffff',
-      evolved ? 26 : 16,
-      evolved ? 190 : 125,
-    );
-    this.spawnRing(
-      this.player.x,
-      this.player.y,
-      8,
-      evolved ? 62 : 42,
-      evolved ? '#d9f7ff' : '#ffffff',
-      0.22,
-      evolved ? 6 : 4,
-    );
-    this.screenShake = Math.max(this.screenShake, evolved ? 5.5 : 3.2);
-  }
+    if (propagation) {
+      this.damageCircle(targetX, targetY, 82, damage * 0.42);
+      this.spawnRing(targetX, targetY, 8, 92, '#5beaff', 0.3, 5);
+    }
 
-  private getLightningCooldownDuration() {
-    const base = Math.max(
-      1.8,
-      5.7 - this.player.lightningLevel * 0.62,
-    );
-    return base * (this.evolvedSkills.has('stormLance') ? 0.82 : 1);
-  }
-
-  private castTargetLightning() {
     if (
-      this.player.lightningLevel <= 0 ||
-      this.player.lightningCooldown > 0 ||
-      this.pausedForUpgrade ||
-      this.gameOver ||
-      this.gameCleared
+      this.evolvedSkills.has('venomAxon') ||
+      this.evolvedSkills.has('axonMesh')
     ) {
-      return;
-    }
-
-    const level = this.player.lightningLevel;
-    const evolved = this.evolvedSkills.has('stormLance');
-    const x = clamp(this.aimX, 25, WORLD_WIDTH - 25);
-    const y = clamp(this.aimY, 25, WORLD_HEIGHT - 25);
-    const radius = (88 + level * 13) * (evolved ? 1.18 : 1);
-    const damage =
-      (72 + level * 34 + this.player.damage * 0.9) *
-      (evolved ? 1.25 : 1);
-
-    this.player.lightningCooldown =
-      this.getLightningCooldownDuration();
-    this.damageCircle(x, y, radius, damage);
-
-    const bolts = evolved ? 4 : 2;
-    for (let i = 0; i < bolts; i += 1) {
-      this.lightningFx.push({
-        x1: x + randomRange(-120, 120),
-        y1: Math.max(0, y - randomRange(430, 620)),
-        x2: x + randomRange(-8, 8),
-        y2: y + randomRange(-8, 8),
-        life: 0.38,
-        maxLife: 0.38,
-        color: evolved ? '#ffffff' : '#d9f7ff',
+      const venom = this.evolvedSkills.has('venomAxon');
+      this.damageFields.push({
+        x: targetX,
+        y: targetY,
+        radius: venom ? 82 : 74,
+        life: venom ? 3.2 : 2.6,
+        maxLife: venom ? 3.2 : 2.6,
+        damage: this.player.damage * (venom ? 0.34 : 0.26),
+        pulseTimer: 0,
       });
     }
 
-    if (evolved) {
-      for (let i = 0; i < 8; i += 1) {
-        const angle = (i / 8) * TAU;
+    if (barrage) {
+      for (let i = 0; i < 4; i += 1) {
+        const angle = (i / 4) * TAU;
         this.bullets.push({
-          x,
-          y,
-          vx: Math.cos(angle) * 740,
-          vy: Math.sin(angle) * 740,
-          radius: 6,
-          life: 0.82,
-          damage: this.player.damage * 1.35,
-          pierce: 3,
+          x: targetX,
+          y: targetY,
+          vx: Math.cos(angle) * 560,
+          vy: Math.sin(angle) * 560,
+          radius: 5,
+          life: 0.65,
+          damage: damage * 0.36,
+          pierce: 2,
           hit: new Set<number>(),
           critical: false,
           style: 'LANCE',
@@ -2192,31 +2304,25 @@ export class GameEngine {
     }
 
     this.spawnParticles(
-      x,
-      y,
-      evolved ? '#ffffff' : '#d9f7ff',
-      evolved ? 58 : 40,
-      evolved ? 270 : 225,
+      this.player.x,
+      this.player.y,
+      fusionCount > 0 ? '#d9f7ff' : '#ffffff',
+      16 + fusionCount * 3,
+      125 + fusionCount * 15,
     );
     this.spawnRing(
-      x,
-      y,
-      10,
-      radius * 1.15,
-      evolved ? '#ffffff' : '#d9f7ff',
-      0.42,
-      evolved ? 10 : 7,
+      this.player.x,
+      this.player.y,
+      8,
+      42 + fusionCount * 7,
+      fusionCount > 0 ? '#d9f7ff' : '#ffffff',
+      0.22,
+      4 + fusionCount * 0.5,
     );
-    this.spawnRing(
-      x,
-      y,
-      22,
-      radius * 0.72,
-      '#5beaff',
-      0.3,
-      4,
+    this.screenShake = Math.max(
+      this.screenShake,
+      3.2 + fusionCount * 0.55,
     );
-    this.screenShake = Math.max(this.screenShake, evolved ? 16 : 12);
   }
 
   private triggerMeteor() {
@@ -2243,12 +2349,71 @@ export class GameEngine {
     }
 
     const level = this.player.meteorLevel;
-    const evolved = this.evolvedSkills.has('ionCataclysm');
-    const radius = (112 + level * 12) * (evolved ? 1.28 : 1);
-    const damage = (66 + level * 30) * (evolved ? 1.5 : 1);
+    const fusionCount = this.fusionCountFor('meteor');
+    const storm = this.evolvedSkills.has('glialCalciumStorm');
+    const radius =
+      (112 + level * 12) *
+      (1 + fusionCount * 0.07) *
+      (storm ? 1.16 : 1);
+    const damage =
+      (66 + level * 30) *
+      (1 + fusionCount * 0.18) *
+      (storm ? 1.2 : 1);
+
     this.damageCircle(x, y, radius, damage);
 
-    const trails = evolved ? 4 : 2;
+    if (this.evolvedSkills.has('calciumWave')) {
+      this.damageCircle(x, y, radius * 0.72, damage * 0.7);
+      this.spawnRing(x, y, 10, radius * 1.25, '#5beaff', 0.42, 6);
+    }
+
+    if (this.evolvedSkills.has('hemolymphCascade')) {
+      this.damageFields.push({
+        x,
+        y,
+        radius: radius * 0.68,
+        life: 4,
+        maxLife: 4,
+        damage: damage * 0.18,
+        pulseTimer: 0,
+      });
+    }
+
+    if (this.evolvedSkills.has('synapticBarrage')) {
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i / 8) * TAU;
+        this.bullets.push({
+          x,
+          y,
+          vx: Math.cos(angle) * 650,
+          vy: Math.sin(angle) * 650,
+          radius: 5.5,
+          life: 0.8,
+          damage: this.player.damage * 1.15,
+          pierce: 3,
+          hit: new Set<number>(),
+          critical: false,
+          style: 'LANCE',
+        });
+      }
+    }
+
+    if (this.evolvedSkills.has('glialOrbitalCascade')) {
+      for (let i = 0; i < 3; i += 1) {
+        const angle = (i / 3) * TAU + this.time;
+        const ox = x + Math.cos(angle) * radius * 0.55;
+        const oy = y + Math.sin(angle) * radius * 0.55;
+        this.damageCircle(
+          ox,
+          oy,
+          42,
+          this.player.orbitalDamage * 4.2,
+        );
+        this.spawnRing(ox, oy, 5, 44, '#5beaff', 0.28, 3);
+      }
+    }
+
+    const trails = 2 + Math.min(4, fusionCount);
     for (let i = 0; i < trails; i += 1) {
       this.lightningFx.push({
         x1: x + randomRange(-220, 120),
@@ -2257,29 +2422,31 @@ export class GameEngine {
         y2: y,
         life: 0.3,
         maxLife: 0.3,
-        color: evolved ? '#ffffff' : '#ffcf57',
+        color: fusionCount > 0 ? '#ffffff' : '#ffcf57',
       });
     }
 
     this.spawnParticles(
       x,
       y,
-      evolved ? '#ffffff' : '#ffcf57',
-      evolved ? 55 : 34,
-      evolved ? 280 : 205,
+      fusionCount > 0 ? '#ffffff' : '#ffcf57',
+      34 + fusionCount * 5,
+      205 + fusionCount * 15,
     );
     this.spawnRing(
       x,
       y,
       16,
       radius,
-      evolved ? '#d9f7ff' : '#ffcf57',
+      fusionCount > 0 ? '#d9f7ff' : '#ffcf57',
       0.48,
-      evolved ? 9 : 6,
+      6 + fusionCount * 0.6,
     );
-    this.screenShake = Math.max(this.screenShake, evolved ? 14 : 9);
+    this.screenShake = Math.max(
+      this.screenShake,
+      9 + fusionCount * 0.8,
+    );
   }
-
   private findNearestFly(
     x: number,
     y: number,
@@ -2385,6 +2552,7 @@ export class GameEngine {
     }
 
     this.boss = null;
+    this.bossStrikes = [];
     this.brain.reset();
 
     if (this.defeatedBosses.size >= 3) {
@@ -2800,12 +2968,9 @@ export class GameEngine {
       connectome,
       abilities: {
         autoLanceLevel: this.player.manualLanceLevel,
-        lightningLevel: this.player.lightningLevel,
-        lightningCooldown: this.player.lightningCooldown,
-        lightningMaxCooldown:
-          this.player.lightningLevel > 0
-            ? this.getLightningCooldownDuration()
-            : 0,
+        lightningLevel: 0,
+        lightningCooldown: 0,
+        lightningMaxCooldown: 0,
         xpPickupRadius: this.player.magnet,
       },
       skills: this.getOwnedSkills(),
@@ -3320,7 +3485,7 @@ export class GameEngine {
 
   private drawAim() {
     if (
-      this.player.lightningLevel <= 0
+      this.player.fieldLevel <= 0
     ) {
       return;
     }
@@ -3343,8 +3508,7 @@ export class GameEngine {
     ctx.stroke();
     ctx.setLineDash([]);
 
-    ctx.strokeStyle =
-      this.player.lightningLevel > 0 ? '#d9f7ff' : '#5beaff';
+    ctx.strokeStyle = '#9cff47';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(x, y, 12, 0, TAU);
@@ -3469,13 +3633,8 @@ export class GameEngine {
       'ArrowDown',
       'ArrowLeft',
       'ArrowRight',
-      'KeyE',
     ];
     if (block.includes(event.code)) event.preventDefault();
-
-    if (!event.repeat && event.code === 'KeyE') {
-      this.castTargetLightning();
-    }
 
     this.keys.add(event.code);
   };
@@ -3504,7 +3663,6 @@ export class GameEngine {
     const point = this.pointerWorld(event);
     this.aimX = point.x;
     this.aimY = point.y;
-    this.castTargetLightning();
   };
 
   private onCanvasClick = (event: MouseEvent) => {

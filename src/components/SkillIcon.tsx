@@ -39,9 +39,21 @@ export const skillAccent: Record<SkillKey, string> = {
   meteor: '#ffd063',
   ricochet: '#91f2db',
   execute: '#ff4766',
-  stormLance: '#ffffff',
-  ionCataclysm: '#e7fbff',
-  neuralSingularity: '#ffffff',
+  ganglionResonance: '#ffffff',
+  vesicleSecretionHalo: '#9cff87',
+  axonalSatellite: '#b9f5ff',
+  synapticLattice: '#b8ff70',
+  glialOrbitalCascade: '#d8f6ff',
+  depolarizationToxinBurst: '#b6ff62',
+  spikePropagation: '#ffffff',
+  ganglionWavefront: '#8cf5ff',
+  calciumWave: '#79dfff',
+  venomAxon: '#b7ff57',
+  neuroglialMatrix: '#a5ff62',
+  hemolymphCascade: '#e8ff70',
+  axonMesh: '#d6ffd0',
+  synapticBarrage: '#fff2b0',
+  glialCalciumStorm: '#ffffff',
 };
 
 export default function SkillIcon({
@@ -238,24 +250,102 @@ export default function SkillIcon({
           <path d="M16 4v24M8 8l8 8 8-8M8 24l8-8 8 8" {...common}/>
           <circle cx="16" cy="16" r="4" {...common}/>
         </>;
-      case 'stormLance':
-        return <>
-          <circle cx="16" cy="16" r="13" {...common}/>
-          <path d="M6 26L25 7M19 6l7 7" {...common}/>
-          <path d="M19 3l-6 9h5l-3 9 8-11h-5z" {...common}/>
-          <path d="M5 16h4M23 16h4" {...common}/>
-        </>;
-      case 'ionCataclysm':
-        return <>
-          <ellipse cx="16" cy="23" rx="13" ry="5" {...common}/>
-          <path d="M7 6l7 7M12 3l5 8M24 5l-7 8" {...common}/>
-          <path d="M17 10l-5 8h5l-3 8 8-11h-5z" {...common}/>
-        </>;
-      case 'neuralSingularity':
+      case 'ganglionResonance':
         return <>
           <circle cx="16" cy="16" r="3" {...common}/>
-          <path d="M16 5c7 0 11 4 11 9 0 7-7 13-15 11-6-2-9-10-4-15 4-4 11-2 12 3 2 7-7 10-11 5" {...common}/>
-          <path d="M3 16h5M24 16h5" {...common}/>
+          <circle cx="16" cy="16" r="9" {...common}/>
+          <ellipse cx="16" cy="16" rx="13" ry="6" transform="rotate(-28 16 16)" {...common}/>
+          <circle cx="26" cy="11" r="1.8" {...common}/>
+        </>;
+      case 'vesicleSecretionHalo':
+        return <>
+          <ellipse cx="16" cy="16" rx="12" ry="6" {...common}/>
+          <circle cx="8" cy="16" r="2" {...common}/>
+          <circle cx="24" cy="16" r="2" {...common}/>
+          <path d="M16 5v5M12 7l2 4M20 7l-2 4M16 22v5" {...common}/>
+        </>;
+      case 'axonalSatellite':
+        return <>
+          <circle cx="16" cy="16" r="9" {...common}/>
+          <path d="M6 26L25 7M20 6l6 6" {...common}/>
+          <circle cx="25" cy="18" r="2" {...common}/>
+        </>;
+      case 'synapticLattice':
+        return <>
+          <path d="M6 9l10-5 10 5v14l-10 5-10-5z" {...common}/>
+          <path d="M6 9l10 7 10-7M16 16v12M6 23l10-7 10 7" {...common}/>
+          <circle cx="16" cy="16" r="2.4" {...common}/>
+        </>;
+      case 'glialOrbitalCascade':
+        return <>
+          <ellipse cx="16" cy="17" rx="12" ry="6" {...common}/>
+          <circle cx="25" cy="13" r="2" {...common}/>
+          <path d="M5 4l8 9M10 3l5 8M18 5l-3 8" {...common}/>
+          <circle cx="16" cy="20" r="4" {...common}/>
+        </>;
+      case 'depolarizationToxinBurst':
+        return <>
+          <circle cx="16" cy="16" r="5" {...common}/>
+          <circle cx="16" cy="16" r="11" {...common}/>
+          <path d="M16 3v5M5 9l4 3M27 9l-4 3M5 23l4-3M27 23l-4-3" {...common}/>
+          <path d="M13 16l2-5 3 10 2-5" {...common}/>
+        </>;
+      case 'spikePropagation':
+        return <>
+          <path d="M4 25L25 4M19 4l7 7" {...common}/>
+          <circle cx="20" cy="12" r="7" {...common}/>
+          <path d="M20 2v4M20 18v4M10 12h4M26 12h4" {...common}/>
+        </>;
+      case 'ganglionWavefront':
+        return <>
+          <circle cx="9" cy="16" r="3" {...common}/>
+          <circle cx="16" cy="16" r="3" {...common}/>
+          <circle cx="23" cy="16" r="3" {...common}/>
+          <path d="M3 24c6-6 20-6 26 0M4 8c7 5 17 5 24 0" {...common}/>
+        </>;
+      case 'calciumWave':
+        return <>
+          <path d="M3 18c5-8 9 8 14 0s9 8 12 0" {...common}/>
+          <circle cx="8" cy="10" r="2" {...common}/>
+          <circle cx="16" cy="7" r="2" {...common}/>
+          <circle cx="24" cy="10" r="2" {...common}/>
+          <path d="M16 12v14" {...common}/>
+        </>;
+      case 'venomAxon':
+        return <>
+          <path d="M5 27L25 7M19 6l7 7" {...common}/>
+          <path d="M9 8c3 1 5 3 6 6M5 12c4 1 6 3 7 6" {...common}/>
+          <circle cx="8" cy="8" r="2" {...common}/>
+        </>;
+      case 'neuroglialMatrix':
+        return <>
+          <ellipse cx="16" cy="23" rx="12" ry="5" {...common}/>
+          <path d="M7 21l4-9 5 5 5-10 4 14" {...common}/>
+          <circle cx="11" cy="12" r="2" {...common}/>
+          <circle cx="21" cy="7" r="2" {...common}/>
+        </>;
+      case 'hemolymphCascade':
+        return <>
+          <path d="M16 4c5 7 8 11 8 16a8 8 0 01-16 0c0-5 3-9 8-16z" {...common}/>
+          <path d="M4 7l7 7M8 3l6 8M24 4l-6 8" {...common}/>
+        </>;
+      case 'axonMesh':
+        return <>
+          <path d="M5 27L25 7M19 6l7 7" {...common}/>
+          <path d="M4 10h10M10 4v10M18 18h10M22 14v14" {...common}/>
+          <circle cx="16" cy="16" r="3" {...common}/>
+        </>;
+      case 'synapticBarrage':
+        return <>
+          <circle cx="16" cy="16" r="4" {...common}/>
+          <path d="M16 16L28 5M16 16l13 0M16 16l11 11M16 16L5 27M16 16H3M16 16L5 5" {...common}/>
+          <path d="M24 4l4 1-1 4" {...common}/>
+        </>;
+      case 'glialCalciumStorm':
+        return <>
+          <ellipse cx="16" cy="23" rx="13" ry="5" {...common}/>
+          <path d="M7 5l7 7M12 3l5 8M24 5l-7 8" {...common}/>
+          <path d="M15 10l-4 7h5l-2 8 7-10h-5z" {...common}/>
         </>;
     }
   })();

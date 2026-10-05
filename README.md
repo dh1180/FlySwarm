@@ -222,10 +222,9 @@ Main Game Thread
 - Adrenaline Loop — low-HP move / fire speed
 - Long Axon — longer projectile lifetime
 - Neural Overclock — damage / fire rate / move speed
-- Motor Lance — 가장 가까운 적에게 주기적으로 자동 발사되는 강력한 관통탄
-- Cortical Thunder — **E / 우클릭**, 마우스 위치 지정 낙뢰
-- Synaptic Carpet — 조준 방향에 주기적 지속 피해 장판
-- Glial Meteor — 강한 적 위치에 주기적 광역 낙하 공격
+- Axonal Spike — 가장 가까운 적에게 주기적으로 자동 발사되는 관통 신경 스파이크
+- Glial Matrix — 조준 방향에 주기적 지속 피해 미세환경
+- Calcium Cascade — 강한 적 위치에서 주기적 칼슘 신호 폭주
 - Recurrent Circuit — 적중 시 추가 투사체 ricochet
 - Apoptosis Trigger — 저체력 적 추가 처형 피해
 
@@ -256,13 +255,13 @@ MYTHIC 확률은 Chest가 드랍된 뒤 다시 1%이므로 실제 몹 한 마리
 
 ## 🎨 Custom Skill Icon Set
 
-31개 기본 Mutation과 3개 Evolution 모두 FlySwarm 전용 SVG 아이콘을 사용합니다.
+30개 선택 가능한 기본 Mutation과 15개 Synaptic Fusion 모두 FlySwarm 전용 SVG 아이콘을 사용합니다.
 
 - Emoji / 외부 Image Asset 미사용
 - React Inline SVG
 - 각 스킬에 고유한 바이오 / 회로 / 전기 / 무기 모티프 적용
 - Skill별 Accent Color
-- Upgrade Card / Acquired Skill HUD / Active Thunder Button에서 동일 Icon 재사용
+- Upgrade Card / Acquired Skill HUD에서 동일 Icon 재사용
 - Evolution Icon은 두 원본 능력의 시각적 특징을 결합한 별도 디자인
 
 아이콘 구현:
@@ -282,15 +281,38 @@ src/components/SkillIcon.tsx
 - 다음 레벨에서 정확히 증가하는 수치
 - Evolution 후보의 경우 필요한 MAX 스킬 조합
 
-현재 Evolution Recipe:
+공격 본체는 아래 6종으로 정의합니다.
 
-| Evolution | Requirement | Result |
-|---|---|---|
-| **THUNDER LANCE** | Motor Lance MAX + Cortical Thunder MAX | Auto Lance에 낙뢰 추가, Thunder 사용 시 8방향 Lance 발사 |
-| **ION CATACLYSM** | Synaptic Carpet MAX + Glial Meteor MAX | 장판 주기 번개 폭발 + 강화 Meteor |
-| **NEURAL SINGULARITY** | Action Potential Nova MAX + Satellite Neuron MAX | 대형 Nova + 적 흡인 + 강화 Orbital |
+- Synaptic Vesicle Orbit
+- Action Potential Burst
+- Neurotoxin Gradient
+- Axonal Spike
+- Glial Matrix
+- Calcium Cascade
 
-Evolution을 획득해도 원본 두 스킬의 MAX 효과는 사라지지 않으며, 융합 효과가 추가됩니다.
+두 공격이 모두 MAX가 되는 순간 가능한 합성을 즉시 제안합니다. `NOT NOW`를 누르면 원본 MAX 스킬을 유지한 채 전투로 복귀하며, 합성은 이후 Level Up / Reward Cache에서 다시 등장할 수 있습니다.
+
+6개 공격의 가능한 모든 2개 조합, 즉 **6C2 = 15개**를 전부 구현합니다.
+
+| Fusion | MAX Requirement |
+|---|---|
+| GANGLION RESONANCE | Synaptic Vesicle Orbit + Action Potential Burst |
+| VESICLE SECRETION HALO | Synaptic Vesicle Orbit + Neurotoxin Gradient |
+| AXONAL SATELLITE | Synaptic Vesicle Orbit + Axonal Spike |
+| SYNAPTIC LATTICE | Synaptic Vesicle Orbit + Glial Matrix |
+| GLIAL ORBITAL CASCADE | Synaptic Vesicle Orbit + Calcium Cascade |
+| DEPOLARIZATION TOXIN BURST | Action Potential Burst + Neurotoxin Gradient |
+| SPIKE PROPAGATION | Action Potential Burst + Axonal Spike |
+| GANGLION WAVEFRONT | Action Potential Burst + Glial Matrix |
+| CALCIUM WAVE | Action Potential Burst + Calcium Cascade |
+| VENOM AXON | Neurotoxin Gradient + Axonal Spike |
+| NEUROGLIAL MATRIX | Neurotoxin Gradient + Glial Matrix |
+| HEMOLYMPH CASCADE | Neurotoxin Gradient + Calcium Cascade |
+| AXON MESH | Axonal Spike + Glial Matrix |
+| SYNAPTIC BARRAGE | Axonal Spike + Calcium Cascade |
+| GLIAL CALCIUM STORM | Glial Matrix + Calcium Cascade |
+
+Fusion은 단순 이름 변경이 아니라 원본 두 공격을 함께 증폭하고, 조합별 교차 효과를 추가합니다.
 
 ## 🏁 Clear / Difficulty
 
@@ -306,7 +328,7 @@ SWARM QUEEN
 GAME CLEAR
 ```
 
-현재 밸런스는 31종 기본 스킬과 Evolution 성장을 고려해 조정했습니다.
+현재 밸런스는 30종 기본 스킬과 15종 Fusion 성장을 고려해 조정했습니다.
 
 - Wave 주기: 28초 → 32초
 - 초반 Enemy Cap 및 Spawn 증가량 완화
@@ -320,9 +342,10 @@ GAME CLEAR
 ## ✨ Combat VFX / Controls
 
 - Mouse / touch world-space aiming with fullscreen letterbox correction
-- Motor Lance: 획득 후 자동 주기 발사
-- `E` 또는 우클릭: Cortical Thunder
-- 모바일: 좌측 가상 조이스틱 이동 + 우측 THUNDER 버튼
+- Axonal Spike: 획득 후 가장 가까운 적에게 자동 주기 발사
+- Glial Matrix: mouse / touch 방향을 참고해 자동 생성
+- 모바일: 좌측 가상 조이스틱 이동
+- 수동 E / 우클릭 낙뢰 스킬 제거
 - 잡몹 종류별 색상 / 크기 / glow 차별화
 - 장판 radial VFX
 - lightning zig-zag trail
@@ -331,10 +354,8 @@ GAME CLEAR
 - screen shake
 - player damage flash
 - enemy projectile glow
-- 수동 스킬 cooldown HUD
 
-Cortical Thunder는 해당 Mutation 획득 후 수동으로 사용하며,
-Motor Lance는 획득 즉시 자동 공격으로 동작합니다.
+Storm Brain의 보라색 방전은 이제 장식선이 아니라 **0.55초 Target Telegraph → 실제 범위 피해**를 주는 회피형 공격입니다.
 
 경험치 Orb는 Player의 Magnet 반경 안에 들어오는 순간 즉시 획득됩니다.
 반경 바깥의 근처 Orb에는 보조 흡인이 적용됩니다.
