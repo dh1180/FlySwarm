@@ -26,11 +26,16 @@ const VIEW_WIDTH = 1280;
 const VIEW_HEIGHT = 720;
 const WORLD_WIDTH = 2400;
 const WORLD_HEIGHT = 1350;
-const WAVE_SECONDS = 32;
+const WAVE_SECONDS = 30;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
-type BossKind = 'NEURAL_HUNTER' | 'STORM_BRAIN' | 'SWARM_QUEEN';
+type BossKind =
+  | 'NEURAL_HUNTER'
+  | 'STORM_BRAIN'
+  | 'SWARM_QUEEN'
+  | 'GLIAL_TITAN'
+  | 'CONNECTOME_APEX';
 
 type Boss = {
   kind: BossKind;
@@ -45,6 +50,10 @@ type Boss = {
   heading: number;
   pulseCooldown: number;
   specialCooldown: number;
+  stage: number;
+  damageScale: number;
+  speedScale: number;
+  cooldownScale: number;
 };
 
 type EnemyShot = {
@@ -97,6 +106,7 @@ type BossStrike = {
   maxTimer: number;
   radius: number;
   damage: number;
+  color: string;
 };
 
 type RewardChest = {
@@ -176,7 +186,7 @@ const upgradeCatalog: UpgradeDefinition[] = [
   { key: 'bulletLife', title: 'Axon Extension', description: '축삭 연장으로 투사체 수명과 사거리 증가', rarity: 'COMMON', maxLevel: 4 },
   { key: 'overclock', title: 'Neuromodulator Overdrive', description: '신경조절물질 과활성으로 공격·공속·이속 복합 강화', rarity: 'NEURAL', maxLevel: 4 },
   { key: 'manualLance', title: 'Axonal Spike', description: '가장 가까운 적을 향해 자동 관통 스파이크 발사', rarity: 'NEURAL', maxLevel: 5 },
-  { key: 'synapticField', title: 'Glial Matrix', description: '전방에 지속 피해를 주는 글리아성 미세환경 형성', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'synapticField', title: 'Glial Matrix', description: '가장 가까운 적 중심에 지속 피해 글리아성 미세환경 형성', rarity: 'NEURAL', maxLevel: 5 },
   { key: 'meteor', title: 'Calcium Cascade', description: '표적 위치에 칼슘 신호 폭주를 일으켜 광역 피해', rarity: 'NEURAL', maxLevel: 5 },
   { key: 'ricochet', title: 'Recurrent Circuit', description: '재귀 회로처럼 추가 투사체가 주변 적으로 재전달', rarity: 'RARE', maxLevel: 5 },
   { key: 'execute', title: 'Apoptotic Threshold', description: '저체력 적의 세포사멸 임계점을 이용해 추가 피해', rarity: 'RARE', maxLevel: 5 },
@@ -1011,9 +1021,9 @@ export class GameEngine {
   }
 
   private spawnFlies() {
-    const bossTax = this.boss ? 0.72 : 1;
-    const cap = Math.floor(Math.min(310, 38 + this.wave * 19) * bossTax);
-    const interval = Math.max(0.095, 0.49 - this.wave * 0.023);
+    const bossTax = this.boss ? 0.8 : 1;
+    const cap = Math.floor(Math.min(390, 46 + this.wave * 23) * bossTax);
+    const interval = Math.max(0.072, 0.43 - this.wave * 0.024);
 
     while (this.spawnTimer >= interval && this.flies.length < cap) {
       this.spawnTimer -= interval;
@@ -1047,10 +1057,10 @@ export class GameEngine {
 
     const roll = Math.random();
     let kind: FlyAgent['kind'] = 'DRONE';
-    if (this.wave >= 5 && roll < 0.09) kind = 'BOMBER';
-    else if (this.wave >= 4 && roll < 0.2) kind = 'SPITTER';
-    else if (this.wave >= 3 && roll < 0.32) kind = 'BRUTE';
-    else if (this.wave >= 2 && roll < 0.5) kind = 'DARTER';
+    if (this.wave >= 4 && roll < 0.12) kind = 'BOMBER';
+    else if (this.wave >= 3 && roll < 0.25) kind = 'SPITTER';
+    else if (this.wave >= 2 && roll < 0.38) kind = 'BRUTE';
+    else if (this.wave >= 2 && roll < 0.58) kind = 'DARTER';
 
     const mutate = (value: number, amount = 0.18) =>
       clamp(value + randomRange(-amount, amount), 0.05, 1);
@@ -1077,7 +1087,7 @@ export class GameEngine {
       genome.fear = 0.05;
     }
 
-    const baseHp = 24 + this.wave * 2.9;
+    const baseHp = 27 + this.wave * 3.5;
     const hpMultiplier =
       kind === 'BRUTE'
         ? 3.25
@@ -1169,14 +1179,14 @@ export class GameEngine {
         }
 
         if (fly.attackCooldown <= 0 && playerDistance < 590) {
-          fly.attackCooldown = Math.max(0.8, 1.7 - this.wave * 0.035);
+          fly.attackCooldown = Math.max(0.68, 1.52 - this.wave * 0.038);
           this.fireEnemyShot(
             fly.x,
             fly.y,
             this.player.x,
             this.player.y,
-            215 + this.wave * 4,
-            6.5 + this.wave * 0.5,
+            235 + this.wave * 5,
+            8 + this.wave * 0.65,
             '#ff86d7',
           );
           this.spawnParticles(fly.x, fly.y, '#ff86d7', 6, 55);
@@ -1246,7 +1256,7 @@ export class GameEngine {
                 ? 1.24
                 : 1;
       const speed =
-        (84 + fly.genome.speed * 88 + this.wave * 3.6) *
+        (90 + fly.genome.speed * 92 + this.wave * 4.2) *
         (fly.decision === 'FLEE' ? 1.14 : 1) *
         kindSpeed;
       const steer = clamp(dt * (fly.kind === 'DARTER' ? 7.8 : 5.2), 0, 1);
@@ -1259,7 +1269,7 @@ export class GameEngine {
         fly.kind === 'BOMBER' &&
         playerDistance < this.player.radius + fly.radius + 13
       ) {
-        this.damagePlayer(18 + this.wave * 1.4);
+        this.damagePlayer(22 + this.wave * 1.7);
         this.screenShake = Math.max(this.screenShake, 10);
         this.damageFlash = Math.max(this.damageFlash, 0.22);
         this.spawnParticles(fly.x, fly.y, '#ff5b63', 24, 160);
@@ -1272,7 +1282,7 @@ export class GameEngine {
         const kindDamage =
           fly.kind === 'BRUTE' ? 2.15 : fly.kind === 'DARTER' ? 0.85 : 1;
         const contactDps =
-          (9 + this.wave * 1.2 + fly.genome.aggression * 4) * kindDamage;
+          (10.5 + this.wave * 1.45 + fly.genome.aggression * 4.5) * kindDamage;
         this.damagePlayer(contactDps * dt);
         fly.x -= towardPlayer.x * 42 * dt;
         fly.y -= towardPlayer.y * 42 * dt;
@@ -1280,20 +1290,62 @@ export class GameEngine {
     }
   }
 
+  private getBossColor(kind: BossKind) {
+    return kind === 'NEURAL_HUNTER'
+      ? '#ffcf57'
+      : kind === 'STORM_BRAIN'
+        ? '#b678ff'
+        : kind === 'SWARM_QUEEN'
+          ? '#c7ff45'
+          : kind === 'GLIAL_TITAN'
+            ? '#55ffc7'
+            : '#ff5b63';
+  }
+
+  private getBossPulseRadius(boss: Boss) {
+    const base =
+      boss.kind === 'STORM_BRAIN'
+        ? 255
+        : boss.kind === 'GLIAL_TITAN'
+          ? 292
+          : boss.kind === 'CONNECTOME_APEX'
+            ? 275
+            : boss.kind === 'SWARM_QUEEN'
+              ? 225
+              : 210;
+    return base + (boss.stage - 1) * 8;
+  }
+
   private spawnBoss() {
-    const kinds: BossKind[] = ['NEURAL_HUNTER', 'STORM_BRAIN', 'SWARM_QUEEN'];
-    const kind = kinds[this.bossIndex % kinds.length];
+    const kinds: BossKind[] = [
+      'NEURAL_HUNTER',
+      'STORM_BRAIN',
+      'SWARM_QUEEN',
+      'GLIAL_TITAN',
+      'CONNECTOME_APEX',
+    ];
+    const stage = Math.min(5, this.bossIndex + 1);
+    const kind = kinds[stage - 1];
     this.bossIndex += 1;
 
     const config =
       kind === 'NEURAL_HUNTER'
-        ? { name: 'NEURAL HUNTER', hp: 0.92, radius: 31, special: 2.6 }
+        ? { name: 'NEURAL HUNTER', hp: 0.96, radius: 31, special: 2.55 }
         : kind === 'STORM_BRAIN'
-          ? { name: 'STORM BRAIN', hp: 1.08, radius: 36, special: 3.1 }
-          : { name: 'SWARM QUEEN', hp: 1.36, radius: 43, special: 4.6 };
+          ? { name: 'STORM BRAIN', hp: 1.12, radius: 36, special: 2.95 }
+          : kind === 'SWARM_QUEEN'
+            ? { name: 'SWARM QUEEN', hp: 1.34, radius: 43, special: 4.15 }
+            : kind === 'GLIAL_TITAN'
+              ? { name: 'GLIAL TITAN', hp: 1.56, radius: 47, special: 3.55 }
+              : { name: 'CONNECTOME APEX', hp: 1.82, radius: 51, special: 2.7 };
 
-    const maxHp = (980 + this.wave * 285) * config.hp;
+    const hpScale = 1 + (stage - 1) * 0.28;
+    const damageScale = 1 + (stage - 1) * 0.16;
+    const speedScale = 1 + (stage - 1) * 0.065;
+    const cooldownScale = Math.max(0.68, 1 - (stage - 1) * 0.07);
+    const maxHp = (1120 + this.wave * 330) * config.hp * hpScale;
     const camera = this.getCamera();
+
     this.boss = {
       kind,
       name: config.name,
@@ -1305,16 +1357,36 @@ export class GameEngine {
       hp: maxHp,
       maxHp,
       heading: Math.PI / 2,
-      pulseCooldown: 1.4,
-      specialCooldown: config.special,
+      pulseCooldown: 1.25 * cooldownScale,
+      specialCooldown: config.special * cooldownScale,
+      stage,
+      damageScale,
+      speedScale,
+      cooldownScale,
     };
+
     this.bossBrainTimer = 0;
     this.bossPolicyTurn = 0;
     this.bossPolicyDrive = 0;
     this.bossRewardBuffer = 0;
     this.bossPenaltyBuffer = 0;
-    this.screenShake = Math.max(this.screenShake, 7);
-    this.spawnParticles(this.boss.x, this.boss.y, '#c7ff45', 30, 145);
+    this.screenShake = Math.max(this.screenShake, 7 + stage * 1.2);
+    this.spawnParticles(
+      this.boss.x,
+      this.boss.y,
+      this.getBossColor(kind),
+      28 + stage * 5,
+      140 + stage * 12,
+    );
+    this.spawnRing(
+      this.boss.x,
+      this.boss.y,
+      20,
+      120 + stage * 18,
+      this.getBossColor(kind),
+      0.65,
+      5 + stage,
+    );
     this.callbacks.onSound('bossSpawn');
     this.brain.reset();
   }
@@ -1367,7 +1439,11 @@ export class GameEngine {
         1,
       );
       const proximity = clamp(1 - distance / 1050, 0, 1);
-      const threat = clamp(0.08 + proximity * 0.62 + bulletThreat * 0.78, 0, 1);
+      const threat = clamp(
+        0.08 + proximity * 0.62 + bulletThreat * 0.78,
+        0,
+        1,
+      );
       this.brain.step(side, threat);
     }
 
@@ -1376,7 +1452,7 @@ export class GameEngine {
     const dy = this.player.y - boss.y;
     const distance = Math.hypot(dx, dy) || 1;
 
-    boss.heading += this.bossPolicyTurn * 4.2 * dt;
+    boss.heading += this.bossPolicyTurn * 4.2 * boss.speedScale * dt;
     const forward = {
       x: Math.cos(boss.heading),
       y: Math.sin(boss.heading),
@@ -1387,20 +1463,43 @@ export class GameEngine {
         ? 1.24
         : boss.kind === 'STORM_BRAIN'
           ? 0.96
-          : 0.78;
-    let drive = this.bossPolicyDrive * 310 * kindDrive;
-    if (boss.kind === 'NEURAL_HUNTER' && distance < 330 && out.forward > 0.3) {
+          : boss.kind === 'SWARM_QUEEN'
+            ? 0.8
+            : boss.kind === 'GLIAL_TITAN'
+              ? 0.74
+              : 1.08;
+
+    let drive =
+      this.bossPolicyDrive *
+      320 *
+      kindDrive *
+      boss.speedScale;
+
+    if (
+      (boss.kind === 'NEURAL_HUNTER' ||
+        boss.kind === 'CONNECTOME_APEX') &&
+      distance < 350 &&
+      out.forward > 0.3
+    ) {
       drive *= 1.28;
     }
 
     const desiredX = forward.x * drive;
     const desiredY = forward.y * drive;
-
+    const baseResponse =
+      boss.kind === 'NEURAL_HUNTER'
+        ? 5
+        : boss.kind === 'CONNECTOME_APEX'
+          ? 4.7
+          : boss.kind === 'STORM_BRAIN'
+            ? 4
+            : 3.65;
     const responsiveness = clamp(
-      dt * (boss.kind === 'NEURAL_HUNTER' ? 5 : 3.8),
+      dt * baseResponse * boss.speedScale,
       0,
       1,
     );
+
     boss.vx += (desiredX - boss.vx) * responsiveness;
     boss.vy += (desiredY - boss.vy) * responsiveness;
     boss.x += boss.vx * dt;
@@ -1419,92 +1518,324 @@ export class GameEngine {
 
     if (distance < boss.radius + this.player.radius + 8) {
       const contactScale =
-        boss.kind === 'SWARM_QUEEN' ? 1.28 : boss.kind === 'NEURAL_HUNTER' ? 1.12 : 1;
-      this.damagePlayerFromBoss((22 + this.wave * 1.5) * contactScale * dt);
+        boss.kind === 'SWARM_QUEEN'
+          ? 1.28
+          : boss.kind === 'GLIAL_TITAN'
+            ? 1.48
+            : boss.kind === 'CONNECTOME_APEX'
+              ? 1.38
+              : boss.kind === 'NEURAL_HUNTER'
+                ? 1.12
+                : 1;
+      this.damagePlayerFromBoss(
+        (24 + this.wave * 1.65) *
+          contactScale *
+          boss.damageScale *
+          dt,
+      );
     }
 
     if (
       boss.pulseCooldown <= 0 &&
       (out.activity > 0.5 || out.wing > 0.46)
     ) {
-      const pulseRadius = boss.kind === 'STORM_BRAIN' ? 250 : 205;
-      boss.pulseCooldown = boss.kind === 'STORM_BRAIN' ? 1.75 : 2.35;
+      const pulseRadius = this.getBossPulseRadius(boss);
+      const pulseBaseCooldown =
+        boss.kind === 'STORM_BRAIN'
+          ? 1.7
+          : boss.kind === 'GLIAL_TITAN'
+            ? 1.85
+            : boss.kind === 'CONNECTOME_APEX'
+              ? 1.5
+              : 2.25;
+      const pulseDamageScale =
+        boss.kind === 'GLIAL_TITAN'
+          ? 1.28
+          : boss.kind === 'CONNECTOME_APEX'
+            ? 1.42
+            : boss.kind === 'STORM_BRAIN'
+              ? 1.18
+              : 1;
+
+      boss.pulseCooldown =
+        pulseBaseCooldown * boss.cooldownScale;
       this.bossPulseFlash = 0.5;
-      this.screenShake = Math.max(this.screenShake, 5);
-      this.spawnParticles(boss.x, boss.y, '#ff5b63', 18, 120);
+      this.screenShake = Math.max(this.screenShake, 5 + boss.stage);
+      this.spawnParticles(
+        boss.x,
+        boss.y,
+        this.getBossColor(boss.kind),
+        18 + boss.stage * 2,
+        120 + boss.stage * 8,
+      );
+
       if (distance < pulseRadius) {
         this.damagePlayerFromBoss(
-          (9 + this.wave * 1.15) *
-            (boss.kind === 'STORM_BRAIN' ? 1.18 : 1),
+          (10 + this.wave * 1.25) *
+            pulseDamageScale *
+            boss.damageScale,
         );
       }
     }
 
-    if (boss.specialCooldown <= 0) {
-      if (boss.kind === 'STORM_BRAIN') {
-        boss.specialCooldown = 3.1;
-        for (let i = 0; i < 10; i += 1) {
-          const angle = (i / 10) * TAU + this.time * 0.35;
-          this.enemyShots.push({
-            x: boss.x,
-            y: boss.y,
-            vx: Math.cos(angle) * (175 + this.wave * 3),
-            vy: Math.sin(angle) * (175 + this.wave * 3),
-            radius: 6,
-            damage: 8 + this.wave * 0.55,
-            life: 4.8,
-            color: '#b678ff',
-            bossOwned: true,
-          });
-        }
-        this.callbacks.onSound('bossStrikeCharge');
-        this.bossStrikes.push({
-          x: this.player.x,
-          y: this.player.y,
-          timer: 0.55,
-          maxTimer: 0.55,
-          radius: 76,
-          damage: 13 + this.wave * 0.85,
+    if (boss.specialCooldown > 0) return;
+
+    if (boss.kind === 'NEURAL_HUNTER') {
+      boss.specialCooldown = 2.55 * boss.cooldownScale;
+      for (let i = -1; i <= 1; i += 1) {
+        const angle = Math.atan2(dy, dx) + i * 0.18;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (270 + this.wave * 4.5) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (270 + this.wave * 4.5) *
+            boss.speedScale,
+          radius: 5.5,
+          damage:
+            (8.5 + this.wave * 0.58) * boss.damageScale,
+          life: 3.5,
+          color: '#ffcf57',
+          bossOwned: true,
         });
-        this.spawnRing(
-          this.player.x,
-          this.player.y,
-          18,
-          76,
-          '#b678ff',
-          0.55,
-          3,
-        );
-        this.screenShake = Math.max(this.screenShake, 4);
-      } else if (boss.kind === 'SWARM_QUEEN') {
-        boss.specialCooldown = 4.8;
-        for (let i = 0; i < 7; i += 1) {
-          const minion = this.createFly();
-          minion.x = clamp(boss.x + randomRange(-90, 90), 20, WORLD_WIDTH - 20);
-          minion.y = clamp(boss.y + randomRange(-90, 90), 20, WORLD_HEIGHT - 20);
-          minion.kind = i % 3 === 0 ? 'SPITTER' : 'DARTER';
-          minion.hp *= 1.25;
-          minion.maxHp = minion.hp;
-          this.flies.push(minion);
-        }
-        this.spawnParticles(boss.x, boss.y, '#c7ff45', 26, 135);
-      } else {
-        boss.specialCooldown = 2.7;
-        for (let i = -1; i <= 1; i += 1) {
-          const angle = Math.atan2(dy, dx) + i * 0.18;
-          this.enemyShots.push({
-            x: boss.x,
-            y: boss.y,
-            vx: Math.cos(angle) * (250 + this.wave * 4),
-            vy: Math.sin(angle) * (250 + this.wave * 4),
-            radius: 5,
-            damage: 7 + this.wave * 0.5,
-            life: 3.4,
-            color: '#ffcf57',
-            bossOwned: true,
-          });
-        }
       }
+      return;
+    }
+
+    if (boss.kind === 'STORM_BRAIN') {
+      boss.specialCooldown = 2.95 * boss.cooldownScale;
+      const shotCount = 12 + boss.stage;
+      for (let i = 0; i < shotCount; i += 1) {
+        const angle =
+          (i / shotCount) * TAU + this.time * 0.35;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (190 + this.wave * 3.5) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (190 + this.wave * 3.5) *
+            boss.speedScale,
+          radius: 6,
+          damage:
+            (9 + this.wave * 0.62) * boss.damageScale,
+          life: 4.8,
+          color: '#b678ff',
+          bossOwned: true,
+        });
+      }
+
+      this.callbacks.onSound('bossStrikeCharge');
+      this.bossStrikes.push({
+        x: this.player.x,
+        y: this.player.y,
+        timer: 0.5,
+        maxTimer: 0.5,
+        radius: 82,
+        damage:
+          (14 + this.wave * 0.9) * boss.damageScale,
+        color: '#b678ff',
+      });
+      this.spawnRing(
+        this.player.x,
+        this.player.y,
+        18,
+        82,
+        '#b678ff',
+        0.5,
+        3,
+      );
+      return;
+    }
+
+    if (boss.kind === 'SWARM_QUEEN') {
+      boss.specialCooldown = 4.15 * boss.cooldownScale;
+      const minionCount = 7 + boss.stage;
+      for (let i = 0; i < minionCount; i += 1) {
+        const minion = this.createFly();
+        minion.x = clamp(
+          boss.x + randomRange(-105, 105),
+          20,
+          WORLD_WIDTH - 20,
+        );
+        minion.y = clamp(
+          boss.y + randomRange(-105, 105),
+          20,
+          WORLD_HEIGHT - 20,
+        );
+        minion.kind = i % 3 === 0 ? 'SPITTER' : 'DARTER';
+        minion.hp *= 1.2 + boss.stage * 0.12;
+        minion.maxHp = minion.hp;
+        this.flies.push(minion);
+      }
+
+      for (let i = 0; i < 6; i += 1) {
+        const angle = (i / 6) * TAU + boss.heading;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx: Math.cos(angle) * 210 * boss.speedScale,
+          vy: Math.sin(angle) * 210 * boss.speedScale,
+          radius: 6,
+          damage: (8 + this.wave * 0.55) * boss.damageScale,
+          life: 4,
+          color: '#c7ff45',
+          bossOwned: true,
+        });
+      }
+      this.spawnParticles(boss.x, boss.y, '#c7ff45', 30, 150);
+      return;
+    }
+
+    if (boss.kind === 'GLIAL_TITAN') {
+      boss.specialCooldown = 3.55 * boss.cooldownScale;
+      const shotCount = 14;
+      for (let i = 0; i < shotCount; i += 1) {
+        const angle = (i / shotCount) * TAU + this.time * 0.18;
+        const speed = (145 + (i % 2) * 55) * boss.speedScale;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: i % 2 === 0 ? 8 : 6,
+          damage:
+            (10.5 + this.wave * 0.68) * boss.damageScale,
+          life: 5.4,
+          color: '#55ffc7',
+          bossOwned: true,
+        });
+      }
+
+      this.callbacks.onSound('bossStrikeCharge');
+      for (let i = 0; i < 3; i += 1) {
+        const angle = (i / 3) * TAU + this.time * 0.3;
+        const x = clamp(
+          this.player.x + Math.cos(angle) * 115,
+          70,
+          WORLD_WIDTH - 70,
+        );
+        const y = clamp(
+          this.player.y + Math.sin(angle) * 115,
+          70,
+          WORLD_HEIGHT - 70,
+        );
+        this.bossStrikes.push({
+          x,
+          y,
+          timer: 0.68,
+          maxTimer: 0.68,
+          radius: 94,
+          damage:
+            (13 + this.wave * 0.82) * boss.damageScale,
+          color: '#55ffc7',
+        });
+        this.spawnRing(x, y, 20, 94, '#55ffc7', 0.68, 4);
+      }
+      return;
+    }
+
+    boss.specialCooldown = 2.7 * boss.cooldownScale;
+
+    const radialCount = 18;
+    for (let i = 0; i < radialCount; i += 1) {
+      const angle =
+        (i / radialCount) * TAU + this.time * 0.46;
+      this.enemyShots.push({
+        x: boss.x,
+        y: boss.y,
+        vx:
+          Math.cos(angle) *
+          (215 + this.wave * 4) *
+          boss.speedScale,
+        vy:
+          Math.sin(angle) *
+          (215 + this.wave * 4) *
+          boss.speedScale,
+        radius: 6.5,
+        damage:
+          (9.5 + this.wave * 0.65) * boss.damageScale,
+        life: 4.5,
+        color: '#ff5b63',
+        bossOwned: true,
+      });
+    }
+
+    for (let i = -2; i <= 2; i += 1) {
+      const angle = Math.atan2(dy, dx) + i * 0.13;
+      this.enemyShots.push({
+        x: boss.x,
+        y: boss.y,
+        vx:
+          Math.cos(angle) *
+          (315 + this.wave * 5) *
+          boss.speedScale,
+        vy:
+          Math.sin(angle) *
+          (315 + this.wave * 5) *
+          boss.speedScale,
+        radius: 5.5,
+        damage:
+          (10.5 + this.wave * 0.7) * boss.damageScale,
+        life: 3.6,
+        color: '#ffffff',
+        bossOwned: true,
+      });
+    }
+
+    this.callbacks.onSound('bossStrikeCharge');
+    const apexOffsets = [
+      { x: 0, y: 0 },
+      { x: 125, y: -70 },
+      { x: -125, y: 70 },
+    ];
+    for (const offset of apexOffsets) {
+      const x = clamp(
+        this.player.x + offset.x,
+        80,
+        WORLD_WIDTH - 80,
+      );
+      const y = clamp(
+        this.player.y + offset.y,
+        80,
+        WORLD_HEIGHT - 80,
+      );
+      this.bossStrikes.push({
+        x,
+        y,
+        timer: 0.46,
+        maxTimer: 0.46,
+        radius: 88,
+        damage:
+          (15 + this.wave * 0.95) * boss.damageScale,
+        color: '#ff5b63',
+      });
+      this.spawnRing(x, y, 18, 88, '#ff5b63', 0.46, 4);
+    }
+
+    for (let i = 0; i < 4; i += 1) {
+      const minion = this.createFly();
+      minion.x = clamp(
+        boss.x + randomRange(-120, 120),
+        20,
+        WORLD_WIDTH - 20,
+      );
+      minion.y = clamp(
+        boss.y + randomRange(-120, 120),
+        20,
+        WORLD_HEIGHT - 20,
+      );
+      minion.kind = i % 2 === 0 ? 'BOMBER' : 'SPITTER';
+      minion.hp *= 1.7;
+      minion.maxHp = minion.hp;
+      this.flies.push(minion);
     }
   }
 
@@ -1879,52 +2210,46 @@ export class GameEngine {
       this.player.fieldTimer += dt;
       const interval = Math.max(2.8, 5.4 - this.player.fieldLevel * 0.45);
       if (this.player.fieldTimer >= interval) {
-        this.player.fieldTimer = 0;
-        const aim = this.getAimDirection();
-        const x = clamp(
-          this.player.x + aim.x * 135,
-          55,
-          WORLD_WIDTH - 55,
-        );
-        const y = clamp(
-          this.player.y + aim.y * 135,
-          55,
-          WORLD_HEIGHT - 55,
-        );
-        const fieldFusionCount = this.fusionCountFor('synapticField');
-        const baseRadius = 82 + this.player.fieldLevel * 10;
-        const baseLife = 4.5 + this.player.fieldLevel * 0.45;
-        this.damageFields.push({
-          x,
-          y,
-          radius:
-            baseRadius *
-            (1 + fieldFusionCount * 0.06) *
-            (this.evolvedSkills.has('neuroglialMatrix') ? 1.18 : 1),
-          life: baseLife * (1 + fieldFusionCount * 0.05),
-          maxLife: baseLife * (1 + fieldFusionCount * 0.05),
-          damage:
-            (14 + this.player.fieldLevel * 7) *
-            (1 + fieldFusionCount * 0.16) *
-            (this.evolvedSkills.has('neuroglialMatrix') ? 1.28 : 1),
-          pulseTimer: 0,
-        });
-        this.spawnParticles(
-          x,
-          y,
-          this.evolvedSkills.has('glialCalciumStorm') ? '#ffffff' : '#9cff47',
-          this.evolvedSkills.has('glialCalciumStorm') ? 28 : 18,
-          this.evolvedSkills.has('glialCalciumStorm') ? 145 : 90,
-        );
-        this.spawnRing(
-          x,
-          y,
-          12,
-          82 + this.player.fieldLevel * 10,
-          this.evolvedSkills.has('glialCalciumStorm') ? '#d9f7ff' : '#9cff47',
-          0.45,
-          4,
-        );
+        const target = this.findNearestEnemyPosition();
+        if (target) {
+          this.player.fieldTimer = 0;
+          const x = clamp(target.x, 55, WORLD_WIDTH - 55);
+          const y = clamp(target.y, 55, WORLD_HEIGHT - 55);
+          const fieldFusionCount = this.fusionCountFor('synapticField');
+          const baseRadius = 82 + this.player.fieldLevel * 10;
+          const baseLife = 4.5 + this.player.fieldLevel * 0.45;
+          this.damageFields.push({
+            x,
+            y,
+            radius:
+              baseRadius *
+              (1 + fieldFusionCount * 0.06) *
+              (this.evolvedSkills.has('neuroglialMatrix') ? 1.18 : 1),
+            life: baseLife * (1 + fieldFusionCount * 0.05),
+            maxLife: baseLife * (1 + fieldFusionCount * 0.05),
+            damage:
+              (14 + this.player.fieldLevel * 7) *
+              (1 + fieldFusionCount * 0.16) *
+              (this.evolvedSkills.has('neuroglialMatrix') ? 1.28 : 1),
+            pulseTimer: 0,
+          });
+          this.spawnParticles(
+            x,
+            y,
+            this.evolvedSkills.has('glialCalciumStorm') ? '#ffffff' : '#9cff47',
+            this.evolvedSkills.has('glialCalciumStorm') ? 28 : 18,
+            this.evolvedSkills.has('glialCalciumStorm') ? 145 : 90,
+          );
+          this.spawnRing(
+            x,
+            y,
+            12,
+            82 + this.player.fieldLevel * 10,
+            this.evolvedSkills.has('glialCalciumStorm') ? '#d9f7ff' : '#9cff47',
+            0.45,
+            4,
+          );
+        }
       }
     }
 
@@ -1985,11 +2310,11 @@ export class GameEngine {
           y2: strike.y + randomRange(-7, 7),
           life: 0.34,
           maxLife: 0.34,
-          color: '#b678ff',
+          color: strike.color,
         });
       }
-      this.spawnParticles(strike.x, strike.y, '#b678ff', 34, 210);
-      this.spawnRing(strike.x, strike.y, 12, strike.radius, '#b678ff', 0.34, 7);
+      this.spawnParticles(strike.x, strike.y, strike.color, 34, 210);
+      this.spawnRing(strike.x, strike.y, 12, strike.radius, strike.color, 0.34, 7);
       this.screenShake = Math.max(this.screenShake, 9);
       strike.timer = -999;
     }
@@ -2174,14 +2499,34 @@ export class GameEngine {
     }
   }
 
-  private getAimDirection() {
-    const dx = this.aimX - this.player.x;
-    const dy = this.aimY - this.player.y;
-    if (Math.hypot(dx, dy) < 8) {
-      return normalize(this.lastMoveX, this.lastMoveY);
+  private findNearestEnemyPosition() {
+    let bestDistance = Infinity;
+    let target: { x: number; y: number } | null = null;
+
+    if (this.boss) {
+      const distance = Math.hypot(
+        this.boss.x - this.player.x,
+        this.boss.y - this.player.y,
+      );
+      bestDistance = distance;
+      target = { x: this.boss.x, y: this.boss.y };
     }
-    return normalize(dx, dy);
+
+    for (const fly of this.flies) {
+      if (fly.hp <= 0) continue;
+      const distance = Math.hypot(
+        fly.x - this.player.x,
+        fly.y - this.player.y,
+      );
+      if (distance < bestDistance) {
+        bestDistance = distance;
+        target = { x: fly.x, y: fly.y };
+      }
+    }
+
+    return target;
   }
+
 
   private castAutoLance() {
     if (
@@ -2528,7 +2873,7 @@ export class GameEngine {
 
   private killBoss() {
     if (!this.boss) return;
-    const { x, y, kind } = this.boss;
+    const { x, y, kind, stage } = this.boss;
     this.defeatedBosses.add(kind);
 
     this.spawnParticles(x, y, '#ffffff', 72, 270);
@@ -2557,14 +2902,16 @@ export class GameEngine {
       );
     }
 
-    this.kills += 50;
-    for (let i = 0; i < 32; i += 1) {
+    this.kills += 40 + stage * 15;
+    const bossOrbCount = 26 + stage * 7;
+    const bossOrbValue = 3 + Math.ceil(stage / 2);
+    for (let i = 0; i < bossOrbCount; i += 1) {
       this.orbs.push({
         x: x + randomRange(-34, 34),
         y: y + randomRange(-34, 34),
         vx: randomRange(-110, 110),
         vy: randomRange(-110, 110),
-        value: 4,
+        value: bossOrbValue,
       });
     }
 
@@ -2572,7 +2919,7 @@ export class GameEngine {
     this.bossStrikes = [];
     this.brain.reset();
 
-    if (this.defeatedBosses.size >= 3) {
+    if (this.defeatedBosses.size >= 5) {
       this.gameCleared = true;
       this.callbacks.onSound('gameClear');
       this.enemyShots = [];
@@ -2581,12 +2928,13 @@ export class GameEngine {
         wave: this.wave,
         seconds: this.time,
         bossesDefeated: this.defeatedBosses.size,
+        bossesTotal: 5,
       });
       this.emitHud();
       return;
     }
 
-    this.nextBossWave = this.wave + 3;
+    this.nextBossWave = 3 + this.bossIndex * 2;
     this.emitHud();
   }
 
@@ -3003,7 +3351,7 @@ export class GameEngine {
       },
       skills: this.getOwnedSkills(),
       bossesDefeated: this.defeatedBosses.size,
-      bossesTotal: 3,
+      bossesTotal: 5,
       boss: this.boss
         ? {
             active: true,
@@ -3011,6 +3359,8 @@ export class GameEngine {
             name: this.boss.name,
             hp: this.boss.hp,
             maxHp: this.boss.maxHp,
+            stage: this.boss.stage,
+            totalStages: 5,
             brain: connectome,
             dopamine: this.dopamine.getSnapshot(),
           }
@@ -3056,7 +3406,6 @@ export class GameEngine {
     this.drawParticles();
     this.drawRingFx();
     this.drawLightningFx();
-    this.drawAim();
     ctx.restore();
 
     if (this.damageFlash > 0) {
@@ -3244,12 +3593,7 @@ export class GameEngine {
     const brain = this.brain.getSnapshot();
     const output = brain.output;
     const scale = this.boss.radius / 34;
-    const color =
-      this.boss.kind === 'NEURAL_HUNTER'
-        ? '#ffcf57'
-        : this.boss.kind === 'STORM_BRAIN'
-          ? '#b678ff'
-          : '#c7ff45';
+    const color = this.getBossColor(this.boss.kind);
 
     ctx.save();
     ctx.translate(this.boss.x, this.boss.y);
@@ -3287,6 +3631,37 @@ export class GameEngine {
       }
     }
 
+    if (this.boss.kind === 'GLIAL_TITAN') {
+      ctx.strokeStyle = '#d7fff1';
+      ctx.lineWidth = 2.2;
+      for (let i = 0; i < 6; i += 1) {
+        const angle = (i / 6) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * 18 * scale, Math.sin(angle) * 18 * scale);
+        ctx.lineTo(Math.cos(angle) * 39 * scale, Math.sin(angle) * 39 * scale);
+        ctx.stroke();
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, 13 * scale, 0, TAU);
+      ctx.stroke();
+    }
+
+    if (this.boss.kind === 'CONNECTOME_APEX') {
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.4;
+      for (let i = 0; i < 8; i += 1) {
+        const angle = (i / 8) * TAU;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * 22 * scale, Math.sin(angle) * 22 * scale);
+        ctx.lineTo(Math.cos(angle) * 46 * scale, Math.sin(angle) * 46 * scale);
+        ctx.stroke();
+      }
+      ctx.strokeStyle = '#ff5b63';
+      ctx.beginPath();
+      ctx.arc(0, 0, 17 * scale, 0, TAU);
+      ctx.stroke();
+    }
+
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#0a0e12';
     ctx.beginPath();
@@ -3309,13 +3684,13 @@ export class GameEngine {
     ctx.font = '900 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      `${this.boss.name} · FULL CONNECTOME`,
+      `STAGE ${this.boss.stage}/5 · ${this.boss.name} · FULL CONNECTOME`,
       this.boss.x,
       this.boss.y - this.boss.radius - 48,
     );
 
     if (this.bossPulseFlash > 0) {
-      const pulseRadius = this.boss.kind === 'STORM_BRAIN' ? 250 : 205;
+      const pulseRadius = this.getBossPulseRadius(this.boss);
       ctx.strokeStyle = `rgba(255,91,99,${this.bossPulseFlash * 1.8})`;
       ctx.lineWidth = 8;
       ctx.beginPath();
@@ -3511,44 +3886,6 @@ export class GameEngine {
     ctx.restore();
   }
 
-  private drawAim() {
-    if (
-      this.player.fieldLevel <= 0
-    ) {
-      return;
-    }
-
-    const ctx = this.ctx;
-    const aim = this.getAimDirection();
-    const x = clamp(this.aimX, 0, WORLD_WIDTH);
-    const y = clamp(this.aimY, 0, WORLD_HEIGHT);
-
-    ctx.save();
-    ctx.strokeStyle = 'rgba(91,234,255,.26)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([7, 8]);
-    ctx.beginPath();
-    ctx.moveTo(this.player.x, this.player.y);
-    ctx.lineTo(
-      this.player.x + aim.x * 150,
-      this.player.y + aim.y * 150,
-    );
-    ctx.stroke();
-    ctx.setLineDash([]);
-
-    ctx.strokeStyle = '#9cff47';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(x, y, 12, 0, TAU);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(x - 18, y);
-    ctx.lineTo(x + 18, y);
-    ctx.moveTo(x, y - 18);
-    ctx.lineTo(x, y + 18);
-    ctx.stroke();
-    ctx.restore();
-  }
 
   private drawChests() {
     const ctx = this.ctx;
