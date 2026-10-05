@@ -360,12 +360,63 @@ Storm Brain의 보라색 방전은 이제 장식선이 아니라 **0.55초 Targe
 경험치 Orb는 Player의 Magnet 반경 안에 들어오는 순간 즉시 획득됩니다.
 반경 바깥의 근처 Orb에는 보조 흡인이 적용됩니다.
 
+## 🔊 Procedural Neural Audio
+
+FlySwarm의 음악과 효과음은 외부 MP3/WAV Asset을 사용하지 않고 **Web Audio API로 실행 중 직접 합성**합니다.
+
+### Background Music
+
+- 저주파 Drone 2 Layer
+- 16-step Neural Pulse Sequence
+- Minor / dissonant 계열의 반복 Pattern
+- 짧은 High Synapse Ping
+- 브라우저에서 실시간 합성되므로 별도 음원 파일이나 외부 CDN이 필요하지 않습니다.
+
+브라우저의 자동재생 정책 때문에 AudioContext는 페이지 진입 직후가 아니라 **ENTER THE SWARM을 누르는 사용자 입력에서 Unlock**됩니다.
+
+### Sound Effects
+
+다음 이벤트에 개별 Procedural SFX가 연결됩니다.
+
+- 기본 자동 공격
+- 일반 적 처치
+- Player 피격
+- Level Up
+- Mutation 획득
+- Synaptic Fusion 가능 알림
+- Synaptic Fusion 획득
+- COMMON / RARE / MYTHIC Reward Cache
+- Full-Connectome Boss 등장
+- Storm Brain Neural Strike 예고
+- Storm Brain Neural Strike 충돌
+- Boss 처치
+- Axonal Spike
+- Calcium Cascade
+- Game Over
+- Game Clear
+
+고속 자동 공격과 연속 처치음에는 최소 재생 간격을 적용해 Audio Spam을 제한합니다.
+
+### Audio Controls
+
+Game Topbar에서 독립적으로 제어할 수 있습니다.
+
+- `MUSIC ON / OFF`
+- `SFX ON / OFF`
+
+Audio Engine:
+
+```text
+src/audio/AudioManager.ts
+```
+
 ## 🛠 Stack
 
 - React
 - TypeScript
 - Vite
 - HTML Canvas
+- Web Audio API
 - Web Worker
 - Leaky Integrate-and-Fire simulation
 - Utility AI
