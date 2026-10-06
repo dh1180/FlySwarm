@@ -218,6 +218,15 @@ export type DopamineHud = {
   pretrainedEpisodes: number;
 };
 
+export type MushroomBodyHud = {
+  approach: number;
+  avoidance: number;
+  novelty: number;
+  dan: number;
+  updates: number;
+  memoryStrength: number;
+};
+
 export type BossHud = {
   active: boolean;
   kind:
@@ -225,7 +234,8 @@ export type BossHud = {
     | 'STORM_BRAIN'
     | 'SWARM_QUEEN'
     | 'GLIAL_TITAN'
-    | 'CONNECTOME_APEX';
+    | 'CONNECTOME_APEX'
+    | 'VIRTUAL_DROSOPHILA';
   name: string;
   hp: number;
   maxHp: number;
@@ -233,6 +243,9 @@ export type BossHud = {
   totalStages: number;
   brain: WholeBrainSnapshot;
   dopamine: DopamineHud;
+  isFinal: boolean;
+  phase: number;
+  mushroomBody: MushroomBodyHud | null;
 };
 
 export type AbilityHud = {
@@ -261,6 +274,10 @@ export type HudSnapshot = {
   skills: OwnedSkill[];
   bossesDefeated: number;
   bossesTotal: number;
+  finalBossActive: boolean;
+  finalBossDefeated: boolean;
+  finalBossPending: boolean;
+  finalBossCountdown: number;
 };
 
 export type GameOverSnapshot = {
@@ -275,6 +292,7 @@ export type GameClearSnapshot = {
   seconds: number;
   bossesDefeated: number;
   bossesTotal: number;
+  finalBossDefeated: boolean;
 };
 
 export type ChestRarity = 'COMMON' | 'RARE' | 'MYTHIC';
@@ -310,4 +328,6 @@ export type GameSoundEvent =
   | 'axonSpike'
   | 'calciumCascade'
   | 'gameOver'
-  | 'gameClear';
+  | 'gameClear'
+  | 'finalBossSpawn'
+  | 'finalBossPhase';
