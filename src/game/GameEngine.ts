@@ -3753,7 +3753,10 @@ export class GameEngine {
     return best;
   }
 
-  private killFly(fly: FlyAgent) {
+  private killFly(
+    fly: FlyAgent,
+    allowMicroglialBurst = true,
+  ) {
     if (fly.hp > 0 || fly.hp <= -1000) return;
     this.kills += 1;
     const deathColor =
@@ -3776,7 +3779,10 @@ export class GameEngine {
     fly.hp = -9999;
     this.callbacks.onSound('enemyDeath');
 
-    if (this.player.microglialBurstLevel > 0) {
+    if (
+      allowMicroglialBurst &&
+      this.player.microglialBurstLevel > 0
+    ) {
       const level = this.player.microglialBurstLevel;
       const radius = 58 + level * 8;
       const damage =
@@ -3790,7 +3796,7 @@ export class GameEngine {
         ) {
           other.hp -= damage;
           if (other.hp <= 0) {
-            other.hp = -0.001;
+            this.killFly(other, false);
           }
         }
       }
