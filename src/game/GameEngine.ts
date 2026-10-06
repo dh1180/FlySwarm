@@ -4918,16 +4918,39 @@ export class GameEngine {
           : chest.rarity === 'RARE'
             ? '#c77dff'
             : '#5beaff';
-      const pulse = 1 + Math.sin(this.time * 5 + chest.phase) * 0.08;
+      const pulseSpeed =
+        chest.rarity === 'MYTHIC'
+          ? 8.5
+          : chest.rarity === 'RARE'
+            ? 6.8
+            : 5;
+      const pulseAmount =
+        chest.rarity === 'MYTHIC'
+          ? 0.14
+          : chest.rarity === 'RARE'
+            ? 0.1
+            : 0.06;
+      const pulse =
+        1 + Math.sin(this.time * pulseSpeed + chest.phase) * pulseAmount;
 
       ctx.save();
       ctx.translate(chest.x, chest.y);
       ctx.scale(pulse, pulse);
       ctx.shadowColor = color;
-      ctx.shadowBlur = chest.rarity === 'MYTHIC' ? 28 : 16;
+      ctx.shadowBlur =
+        chest.rarity === 'MYTHIC'
+          ? 38
+          : chest.rarity === 'RARE'
+            ? 26
+            : 14;
       ctx.strokeStyle = color;
       ctx.fillStyle = 'rgba(8,13,18,.94)';
-      ctx.lineWidth = chest.rarity === 'MYTHIC' ? 3 : 2;
+      ctx.lineWidth =
+        chest.rarity === 'MYTHIC'
+          ? 3.5
+          : chest.rarity === 'RARE'
+            ? 3
+            : 2;
 
       const w = chest.radius * 1.6;
       const h = chest.radius * 1.15;
@@ -4944,24 +4967,75 @@ export class GameEngine {
       ctx.fillStyle = color;
       ctx.fillRect(-2.5, -5, 5, 10);
 
-      ctx.globalAlpha = 0.5;
+      ctx.globalAlpha = chest.rarity === 'COMMON' ? 0.45 : 0.72;
       ctx.strokeStyle = color;
       ctx.beginPath();
       ctx.arc(0, 0, chest.radius + 7, 0, TAU);
       ctx.stroke();
 
-      if (chest.rarity === 'MYTHIC') {
-        ctx.globalAlpha = 0.8;
+      if (chest.rarity === 'RARE' || chest.rarity === 'MYTHIC') {
+        const orbitRadius =
+          chest.radius + (chest.rarity === 'MYTHIC' ? 17 : 14);
+        ctx.globalAlpha = chest.rarity === 'MYTHIC' ? 0.82 : 0.66;
+        ctx.lineWidth = chest.rarity === 'MYTHIC' ? 2.5 : 2;
         ctx.beginPath();
-        ctx.moveTo(0, -chest.radius - 12);
-        ctx.lineTo(4, -chest.radius - 5);
+        ctx.arc(0, 0, orbitRadius, 0, TAU);
+        ctx.stroke();
+
+        const nodeCount = chest.rarity === 'MYTHIC' ? 6 : 4;
+        for (let i = 0; i < nodeCount; i += 1) {
+          const angle =
+            (i / nodeCount) * TAU +
+            this.time * (chest.rarity === 'MYTHIC' ? 1.25 : 0.9) +
+            chest.phase;
+          const nx = Math.cos(angle) * orbitRadius;
+          const ny = Math.sin(angle) * orbitRadius;
+          ctx.fillStyle =
+            chest.rarity === 'MYTHIC' && i % 2 === 0
+              ? '#ffffff'
+              : color;
+          ctx.beginPath();
+          ctx.arc(
+            nx,
+            ny,
+            chest.rarity === 'MYTHIC' ? 2.8 : 2.2,
+            0,
+            TAU,
+          );
+          ctx.fill();
+        }
+      }
+
+      if (chest.rarity === 'MYTHIC') {
+        ctx.globalAlpha = 0.88;
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(0, -chest.radius - 16);
+        ctx.lineTo(5, -chest.radius - 7);
         ctx.lineTo(0, -chest.radius + 1);
-        ctx.lineTo(-4, -chest.radius - 5);
+        ctx.lineTo(-5, -chest.radius - 7);
         ctx.closePath();
         ctx.stroke();
       }
 
       ctx.restore();
+
+      if (chest.rarity !== 'COMMON') {
+        ctx.save();
+        ctx.textAlign = 'center';
+        ctx.font = '900 9px Inter, sans-serif';
+        ctx.fillStyle = color;
+        ctx.shadowColor = color;
+        ctx.shadowBlur = 10;
+        ctx.fillText(
+          chest.rarity === 'MYTHIC'
+            ? 'MYTHIC ×3'
+            : 'RARE ×2',
+          chest.x,
+          chest.y - chest.radius - 24,
+        );
+        ctx.restore();
+      }
     }
 
     ctx.restore();
