@@ -3351,25 +3351,85 @@ export class GameEngine {
 
   private killBoss() {
     if (!this.boss) return;
-    const { x, y, kind, stage } = this.boss;
-    this.defeatedBosses.add(kind);
 
-    this.spawnParticles(x, y, '#ffffff', 72, 270);
-    for (let i = 0; i < 4; i += 1) {
+    const boss = this.boss;
+    const { x, y, kind, stage, isFinal } = boss;
+    const color = this.getBossColor(kind);
+
+    this.spawnParticles(
+      x,
+      y,
+      '#ffffff',
+      isFinal ? 150 : 72,
+      isFinal ? 390 : 270,
+    );
+    for (let i = 0; i < (isFinal ? 9 : 4); i += 1) {
       this.lightningFx.push({
-        x1: x + randomRange(-220, 220),
-        y1: y - randomRange(300, 560),
-        x2: x + randomRange(-30, 30),
-        y2: y + randomRange(-30, 30),
-        life: 0.48,
-        maxLife: 0.48,
-        color: '#c7ff45',
+        x1: x + randomRange(-260, 260),
+        y1: y - randomRange(300, 620),
+        x2: x + randomRange(-40, 40),
+        y2: y + randomRange(-40, 40),
+        life: isFinal ? 0.72 : 0.48,
+        maxLife: isFinal ? 0.72 : 0.48,
+        color,
       });
     }
-    this.spawnRing(x, y, 20, 310, '#ffffff', 0.72, 12);
-    this.spawnRing(x, y, 30, 220, '#c7ff45', 0.58, 7);
-    this.screenShake = Math.max(this.screenShake, 18);
+    this.spawnRing(
+      x,
+      y,
+      20,
+      isFinal ? 520 : 310,
+      '#ffffff',
+      isFinal ? 1.05 : 0.72,
+      isFinal ? 16 : 12,
+    );
+    this.spawnRing(
+      x,
+      y,
+      30,
+      isFinal ? 410 : 220,
+      color,
+      isFinal ? 0.9 : 0.58,
+      isFinal ? 12 : 7,
+    );
+    this.screenShake = Math.max(
+      this.screenShake,
+      isFinal ? 30 : 18,
+    );
     this.callbacks.onSound('bossDeath');
+
+    if (isFinal) {
+      this.mushroomBody.reward(-2.5);
+      this.dopamine.reward(-2.5);
+      this.finalBossDefeated = true;
+      this.finalBossPending = false;
+      this.finalBossCountdown = 0;
+      this.gameCleared = true;
+      this.kills += 250;
+
+      this.boss = null;
+      this.enemyShots = [];
+      this.bossStrikes = [];
+      this.flies = [];
+      this.chests = [];
+      this.orbs = [];
+      this.damageFields = [];
+      this.brain.reset();
+
+      this.callbacks.onSound('gameClear');
+      this.callbacks.onGameClear({
+        kills: this.kills,
+        wave: this.wave,
+        seconds: this.time,
+        bossesDefeated: this.defeatedBosses.size,
+        bossesTotal: 5,
+        finalBossDefeated: true,
+      });
+      this.emitHud();
+      return;
+    }
+
+    this.defeatedBosses.add(kind as CoreBossKind);
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
 
@@ -3398,17 +3458,7 @@ export class GameEngine {
     this.brain.reset();
 
     if (this.defeatedBosses.size >= 5) {
-      this.gameCleared = true;
-      this.callbacks.onSound('gameClear');
-      this.enemyShots = [];
-      this.callbacks.onGameClear({
-        kills: this.kills,
-        wave: this.wave,
-        seconds: this.time,
-        bossesDefeated: this.defeatedBosses.size,
-        bossesTotal: 5,
-      });
-      this.emitHud();
+      this.beginFinalEncounter();
       return;
     }
 
