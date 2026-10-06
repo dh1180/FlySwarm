@@ -2358,24 +2358,41 @@ export class GameEngine {
     }
 
     if (this.player.orbitalCount > 0) {
+      const orbitalFusionCount = this.fusionCountFor('orbital');
+      const resonance = this.evolvedSkills.has('ganglionResonance');
+      const toxinHalo = this.evolvedSkills.has('vesicleSecretionHalo');
+      const lattice = this.evolvedSkills.has('synapticLattice');
+
+      if (lattice) {
+        this.orbitalPulseTimer += dt;
+      } else {
+        this.orbitalPulseTimer = 0;
+      }
+      const latticePulse = lattice && this.orbitalPulseTimer >= 0.48;
+      if (latticePulse) this.orbitalPulseTimer = 0;
+
+      const orbitalMultiplier =
+        1 +
+        orbitalFusionCount * 0.35 +
+        (resonance ? 0.42 : 0);
+
       for (let i = 0; i < this.player.orbitalCount; i += 1) {
         const angle =
-          this.time * 2.1 +
+          this.time * 3.05 +
           (i / this.player.orbitalCount) * TAU;
-        const x = this.player.x + Math.cos(angle) * 74;
-        const y = this.player.y + Math.sin(angle) * 74;
-        const candidates = this.spatial.query(x, y, 22);
+        const orbitRadius =
+          this.player.orbitalCount >= 5 && i % 2 === 1 ? 96 : 70;
+        const x = this.player.x + Math.cos(angle) * orbitRadius;
+        const y = this.player.y + Math.sin(angle) * orbitRadius;
+        const hitRadius = 17;
+        const candidates = this.spatial.query(x, y, 38);
 
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
-          if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + 10) {
-            const orbitalMultiplier =
-              1 +
-              this.fusionCountFor('orbital') * 0.18 +
-              (this.evolvedSkills.has('ganglionResonance') ? 0.28 : 0);
+          if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + hitRadius) {
             fly.hp -=
               this.player.orbitalDamage *
-              6 *
+              8.2 *
               orbitalMultiplier *
               dt;
             if (fly.hp <= 0) this.killFly(fly);
@@ -2385,19 +2402,34 @@ export class GameEngine {
         if (
           this.boss &&
           Math.hypot(this.boss.x - x, this.boss.y - y) <
-            this.boss.radius + 10
+            this.boss.radius + hitRadius
         ) {
           this.damageBoss(
             this.player.orbitalDamage *
-              4 *
-              (1 +
-                this.fusionCountFor('orbital') * 0.18 +
-                (this.evolvedSkills.has('ganglionResonance') ? 0.28 : 0)) *
+              6.3 *
+              orbitalMultiplier *
               dt *
               this.player.bossDamage,
           );
         }
+
+        if (toxinHalo) {
+          const haloDps = Math.max(18, this.player.auraDamage * 0.72);
+          this.damageCircle(x, y, 46, haloDps * dt);
+        }
+
+        if (latticePulse) {
+          this.damageCircle(
+            x,
+            y,
+            58,
+            this.player.orbitalDamage * 2.6 * orbitalMultiplier,
+          );
+          this.spawnRing(x, y, 10, 62, '#b8ff70', 0.28, 3);
+        }
       }
+    } else {
+      this.orbitalPulseTimer = 0;
     }
 
     if (this.player.novaInterval > 0) {
@@ -3979,17 +4011,43 @@ export class GameEngine {
     const ctx = this.ctx;
 
     if (this.player.orbitalCount > 0) {
+      const toxinHalo = this.evolvedSkills.has('vesicleSecretionHalo');
+      const lattice = this.evolvedSkills.has('synapticLattice');
+
       for (let i = 0; i < this.player.orbitalCount; i += 1) {
         const angle =
-          this.time * 2.1 +
+          this.time * 3.05 +
           (i / this.player.orbitalCount) * TAU;
-        const x = this.player.x + Math.cos(angle) * 74;
-        const y = this.player.y + Math.sin(angle) * 74;
+        const orbitRadius =
+          this.player.orbitalCount >= 5 && i % 2 === 1 ? 96 : 70;
+        const x = this.player.x + Math.cos(angle) * orbitRadius;
+        const y = this.player.y + Math.sin(angle) * orbitRadius;
+
+        if (toxinHalo) {
+          ctx.strokeStyle = 'rgba(156,255,135,.34)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(x, y, 25, 0, TAU);
+          ctx.stroke();
+        }
+        if (lattice) {
+          ctx.strokeStyle = 'rgba(184,255,112,.46)';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(x, y, 15, 0, TAU);
+          ctx.stroke();
+        }
+
         ctx.fillStyle = '#ffcf57';
         ctx.shadowColor = '#ffcf57';
-        ctx.shadowBlur = 12;
+        ctx.shadowBlur = 16;
         ctx.beginPath();
-        ctx.arc(x, y, 8, 0, TAU);
+        ctx.arc(x, y, 9.5, 0, TAU);
+        ctx.fill();
+
+        ctx.fillStyle = '#fff6ca';
+        ctx.beginPath();
+        ctx.arc(x, y, 3.2, 0, TAU);
         ctx.fill();
       }
       ctx.shadowBlur = 0;
