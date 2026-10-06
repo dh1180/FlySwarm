@@ -316,6 +316,60 @@ src/components/SkillIcon.tsx
 
 Fusion은 단순 이름 변경이 아니라 원본 두 공격을 함께 증폭하고, 조합별 교차 효과를 추가합니다.
 
+## 🪰 Giant Fiber Evasion Reflex
+
+Full-Connectome Boss는 이제 Player projectile을 단순 거리 기준이 아니라 **탄도 예측**으로 감지합니다.
+
+각 Player Bullet에 대해 다음 값을 계산합니다.
+
+- Bullet과 Boss의 상대 위치
+- Bullet과 Boss의 상대 속도
+- 약 0.9초 이내 최근접 접근 시간
+- 예상 최근접 거리
+- Boss Hitbox + Safety Margin과의 교차 여부
+
+실제로 충돌 가능성이 높은 Projectile만 Threat로 분류하고, 투사체 진행선에 수직인 좌/우 방향 중 더 안전한 쪽으로 회피합니다.
+
+```text
+Incoming Bullet
+      ↓
+Relative Velocity
+      ↓
+Closest Approach Prediction
+      ↓
+Collision Risk?
+   ├─ No  → 기존 Full-Connectome 이동
+   └─ Yes
+       ↓
+Giant Fiber Reflex
+       ↓
+Lateral Evasion
+```
+
+회피 정보는 단순 Scripted Translation으로 끝나지 않고 기존 WholeBrain sensory input에도 섞입니다.
+
+- Player 방향과 Projectile Threat 방향을 상황에 따라 Blend
+- Threat Score가 높을수록 Projectile 회피 방향의 비중 증가
+- DopaminePolicy의 turn / drive 출력은 그대로 유지
+- 회피에 성공해 위험 탄이 지나가면 작은 Positive Reward
+- 실제 Projectile에 맞으면 해당 회피 Reward는 취소되고 기존 Damage Penalty 적용
+
+따라서 반복 플레이에서 Projectile Threat 상황에 대한 Policy Weight도 계속 업데이트될 수 있습니다.
+
+### Anti-Orbit Movement
+
+기존에는 `turn`이 같은 방향으로 오래 유지될 경우 heading이 계속 회전하여 Boss가 원을 그리는 현상이 있었습니다.
+
+변경 후:
+
+- Boss에 Angular Velocity 상태 추가
+- Policy Turn → Angular Velocity로 변환
+- 회전에 관성 / 감쇠 적용
+- 같은 방향 Turn을 오래 유지하면 회전 명령을 점진적으로 낮춤
+- 실제 Projectile Threat 중에는 Anti-Orbit 감쇠를 해제하여 빠른 회피 허용
+
+즉 Connectome / Dopamine Policy를 바꾸지 않고 **몸체가 지속적인 회전 명령을 해석하는 방식**을 개선했습니다.
+
 ## 🏁 Clear / Difficulty
 
 한 판의 최종 목표는 5단계 Full-Connectome Boss를 순서대로 모두 처치하는 것입니다.
