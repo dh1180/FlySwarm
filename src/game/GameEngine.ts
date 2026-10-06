@@ -1092,6 +1092,10 @@ export class GameEngine {
       0,
       this.player.lightningCooldown - dt,
     );
+    this.player.nociceptiveReflexCooldown = Math.max(
+      0,
+      this.player.nociceptiveReflexCooldown - dt,
+    );
 
     if (
       !this.finalBossPending &&
@@ -2698,6 +2702,45 @@ export class GameEngine {
       });
     }
 
+    if (
+      this.player.synapticEchoLevel > 0 &&
+      Math.random() <
+        0.12 + this.player.synapticEchoLevel * 0.08
+    ) {
+      const echoCount = this.player.bulletCount;
+      for (let i = 0; i < echoCount; i += 1) {
+        const offset =
+          echoCount === 1
+            ? 0.045
+            : (i - (echoCount - 1) / 2) *
+                Math.min(0.15, 0.36 / echoCount) +
+              0.045;
+        const angle = base + offset;
+        this.bullets.push({
+          x: this.player.x,
+          y: this.player.y,
+          vx: Math.cos(angle) * this.player.bulletSpeed * 1.04,
+          vy: Math.sin(angle) * this.player.bulletSpeed * 1.04,
+          radius: Math.max(2.5, this.player.bulletSize * 0.86),
+          life: this.player.bulletLife,
+          damage: this.player.damage * 0.72,
+          pierce: this.player.pierce,
+          hit: new Set<number>(),
+          critical: false,
+          style: 'NORMAL',
+        });
+      }
+      this.spawnRing(
+        this.player.x,
+        this.player.y,
+        6,
+        34,
+        '#ff58bb',
+        0.16,
+        2,
+      );
+    }
+
     this.callbacks.onSound('shot');
   }
 
@@ -3088,6 +3131,63 @@ export class GameEngine {
       if (this.player.meteorTimer >= interval) {
         this.player.meteorTimer = 0;
         this.triggerMeteor();
+      }
+    }
+
+    if (this.player.dendriticVolleyLevel > 0) {
+      this.player.dendriticVolleyTimer += dt;
+      const level = this.player.dendriticVolleyLevel;
+      const interval = Math.max(1.45, 3.15 - level * 0.28);
+
+      if (this.player.dendriticVolleyTimer >= interval) {
+        const target = this.findNearestEnemyPosition();
+        if (target) {
+          this.player.dendriticVolleyTimer = 0;
+          const base = Math.atan2(
+            target.y - this.player.y,
+            target.x - this.player.x,
+          );
+          const count = 3 + level * 2;
+          const totalSpread = 0.82;
+          const damage =
+            this.player.damage * (0.36 + level * 0.14);
+
+          for (let i = 0; i < count; i += 1) {
+            const t = count === 1 ? 0.5 : i / (count - 1);
+            const angle = base + (t - 0.5) * totalSpread;
+            this.bullets.push({
+              x: this.player.x,
+              y: this.player.y,
+              vx: Math.cos(angle) * this.player.bulletSpeed * 0.92,
+              vy: Math.sin(angle) * this.player.bulletSpeed * 0.92,
+              radius: Math.max(2.8, this.player.bulletSize * 0.72),
+              life: this.player.bulletLife * 0.92,
+              damage,
+              pierce: Math.floor(level / 3),
+              hit: new Set<number>(),
+              critical: false,
+              style: 'NORMAL',
+            });
+          }
+
+          this.spawnParticles(
+            this.player.x,
+            this.player.y,
+            '#b9a2ff',
+            9 + level * 2,
+            92,
+          );
+          this.spawnRing(
+            this.player.x,
+            this.player.y,
+            8,
+            42 + level * 5,
+            '#b9a2ff',
+            0.22,
+            2,
+          );
+          this.callbacks.onSound('shot');
+        }
       }
     }
   }
@@ -3675,6 +3775,54 @@ export class GameEngine {
     );
     fly.hp = -9999;
     this.callbacks.onSound('enemyDeath');
+
+    if (this.player.microglialBurstLevel > 0) {
+      const level = this.player.microglialBurstLevel;
+      const radius = 58 + level * 8;
+      const damage =
+        this.player.damage * (0.22 + level * 0.09);
+
+      for (const other of this.flies) {
+        if (other.hp <= 0 || other.id === fly.id) continue;
+        if (
+          Math.hypot(other.x - fly.x, other.y - fly.y) <=
+          radius + other.radius
+        ) {
+          other.hp -= damage;
+          if (other.hp <= 0) {
+            other.hp = -0.001;
+          }
+        }
+      }
+
+      if (
+        this.boss &&
+        Math.hypot(this.boss.x - fly.x, this.boss.y - fly.y) <=
+          radius + this.boss.radius
+      ) {
+        this.damageBoss(
+          damage * 0.65 * this.player.bossDamage,
+        );
+      }
+
+      this.spawnParticles(
+        fly.x,
+        fly.y,
+        '#91f2db',
+        8 + level * 2,
+        105 + level * 8,
+      );
+      this.spawnRing(
+        fly.x,
+        fly.y,
+        6,
+        radius,
+        '#91f2db',
+        0.25,
+        2.5,
+      );
+    }
+
     if (this.player.killHeal > 0) {
       this.player.hp = Math.min(
         this.player.maxHp,
@@ -4269,6 +4417,43 @@ export class GameEngine {
       this.screenShake = Math.max(this.screenShake, Math.min(8, 2 + actual * 0.16));
       this.spawnParticles(this.player.x, this.player.y, '#ff5b63', 5, 75);
       this.callbacks.onSound('playerHit');
+
+      if (
+        this.player.nociceptiveReflexLevel > 0 &&
+        this.player.nociceptiveReflexCooldown <= 0
+      ) {
+        const level = this.player.nociceptiveReflexLevel;
+        const radius = 115 + level * 15;
+        const damage =
+          this.player.damage * (0.55 + level * 0.18);
+        this.player.nociceptiveReflexCooldown = Math.max(
+          0.95,
+          2.35 - level * 0.28,
+        );
+        this.damageCircle(
+          this.player.x,
+          this.player.y,
+          radius,
+          damage,
+        );
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          14,
+          radius,
+          '#ff9c38',
+          0.34,
+          5,
+        );
+        this.spawnParticles(
+          this.player.x,
+          this.player.y,
+          '#ff9c38',
+          18 + level * 3,
+          150,
+        );
+        this.screenShake = Math.max(this.screenShake, 7 + level);
+      }
     }
     return actual;
   }
