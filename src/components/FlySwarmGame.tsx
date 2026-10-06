@@ -45,6 +45,10 @@ const initialHud: HudSnapshot = {
   skills: [],
   bossesDefeated: 0,
   bossesTotal: 5,
+  finalBossActive: false,
+  finalBossDefeated: false,
+  finalBossPending: false,
+  finalBossCountdown: 0,
   connectome: {
     status: 'idle',
     progress: 0,
@@ -277,16 +281,26 @@ export default function FlySwarmGame() {
             <b>{Math.floor(hud.seconds)}s</b>
             <b>{hud.enemyCount} AGENTS</b>
             <b>BOSSES {hud.bossesDefeated}/{hud.bossesTotal}</b>
+            {hud.finalBossActive && <b className="final-badge">FINAL ACTIVE</b>}
+            {hud.finalBossPending && <b className="final-badge">FINAL INCOMING</b>}
             <b className={`brain-badge ${hud.connectome.status}`}>{brainLabel}</b>
           </div>
         </div>
       </div>
 
       {hud.boss && (
-        <div className="boss-strip">
+        <div className={`boss-strip ${hud.boss.isFinal ? 'final-boss-strip' : ''}`}>
           <div>
-            <span>⚠ CONNECTOME ENTITY DETECTED</span>
-            <strong>STAGE {hud.boss.stage}/{hud.boss.totalStages} · {hud.boss.name}</strong>
+            <span>
+              {hud.boss.isFinal
+                ? '⚠ ADAPTIVE VIRTUAL ORGANISM'
+                : '⚠ CONNECTOME ENTITY DETECTED'}
+            </span>
+            <strong>
+              {hud.boss.isFinal
+                ? `FINAL · PHASE ${hud.boss.phase}/3 · ${hud.boss.name}`
+                : `STAGE ${hud.boss.stage}/${hud.boss.totalStages} · ${hud.boss.name}`}
+            </strong>
           </div>
           <div className="boss-hp">
             <i
@@ -307,6 +321,17 @@ export default function FlySwarmGame() {
             <b>GEN {hud.boss.dopamine.generation}</b>
             <b>LEARN {hud.boss.dopamine.updates}</b>
             <b>PRETRAIN {(hud.boss.dopamine.pretrainedEpisodes / 1000).toFixed(0)}K</b>
+            {hud.boss.mushroomBody && (
+              <>
+                <b>MBON+ {pct(hud.boss.mushroomBody.approach)}</b>
+                <b>MBON− {pct(hud.boss.mushroomBody.avoidance)}</b>
+                <b>
+                  DAN {hud.boss.mushroomBody.dan >= 0 ? '+' : ''}
+                  {hud.boss.mushroomBody.dan.toFixed(2)}
+                </b>
+                <b>MEM {hud.boss.mushroomBody.updates}</b>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -369,11 +394,20 @@ export default function FlySwarmGame() {
               WASD / 방향키로 이동하세요. 기본 공격은 자동입니다. 시작과 함께 Neural Pulse soundtrack이 재생됩니다.<br/>
               Axonal Spike는 가장 가까운 적을 자동 공격하고, Glial Matrix도 가장 가까운 적 중심에 자동 생성됩니다.<br/>
               공격 스킬 두 개가 MAX가 되는 순간 가능한 Synaptic Fusion을 바로 제안하며, 원하지 않으면 나중으로 미룰 수 있습니다.<br/>
-              일반몹은 5개 전투 아키타입의 Utility AI, 보스 3종은 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
-              보스는 120,000-step 사전학습 정책에서 시작하고, 실제 플레이에서는 도파민형 보상으로 계속 미세조정됩니다.<br/>
-              플레이어에게 피해를 주면 보상, 피격되면 패널티를 받으며 학습값은 다음 보스전에도 이어집니다.
+              일반몹은 5개 전투 아키타입의 Utility AI, 5단계 보스는 FlyWire 전체 연결망 기반 LIF controller를 사용합니다.<br/>
+              5보스를 모두 처치하면 잡몹이 사라지고, whole-connectome + Mushroom Body형 가소성 메모리를 가진 VIRTUAL DROSOPHILA와 1대1 최종전이 시작됩니다.<br/>
+              보스는 120,000-step 사전학습 운동 정책에서 시작하며, 최종 보스는 DAN reward와 MBON valence memory까지 전투 중 추가 학습합니다.
             </p>
             <button onClick={start}>ENTER THE SWARM</button>
+          </div>
+        )}
+
+        {hud.finalBossPending && !gameOver && !gameClear && (
+          <div className="final-transition">
+            <span>CORE BOSSES 5 / 5 ELIMINATED</span>
+            <strong>VIRTUAL DROSOPHILA</strong>
+            <b>INITIALIZING · {hud.finalBossCountdown.toFixed(1)}s</b>
+            <small>ALL OTHER ORGANISMS PURGED · FINAL 1 VS 1</small>
           </div>
         )}
 
@@ -427,15 +461,16 @@ export default function FlySwarmGame() {
         {gameClear && (
           <div className="game-overlay clear-overlay">
             <span className="fly-icon">🧠⚡</span>
-            <p>CONNECTOME SWARM CLEARED</p>
+            <p>VIRTUAL DROSOPHILA DEFEATED</p>
             <h2>HUMAN<br/>SURVIVED.</h2>
             <div className="death-stats">
-              <span><b>{gameClear.bossesDefeated}/{gameClear.bossesTotal}</b> bosses eliminated</span>
+              <span><b>{gameClear.bossesDefeated}/{gameClear.bossesTotal}</b> core bosses eliminated</span>
+              <span><b>{gameClear.finalBossDefeated ? '1/1' : '0/1'}</b> virtual fly defeated</span>
               <span><b>{gameClear.kills}</b> total kills</span>
               <span><b>{Math.floor(gameClear.seconds)}s</b> clear time</span>
             </div>
             <strong className="clear-copy">
-              다섯 단계의 Full-Connectome Boss를 모두 처치했습니다.
+              다섯 단계의 Full-Connectome Boss와 학습형 Virtual Drosophila 최종 보스를 모두 처치했습니다.
             </strong>
             <button onClick={restart}>PLAY AGAIN</button>
           </div>
