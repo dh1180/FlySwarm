@@ -338,6 +338,9 @@ export class GameEngine {
   private shootTimer = 0;
   private evolutionBanner = 0;
   private novaFlash = 0;
+  private lastNovaRadius = 220;
+  private auraPulseTimer = 0;
+  private orbitalBurstTimer = 0;
   private bossPulseFlash = 0;
   private wave = 1;
   private kills = 0;
@@ -436,6 +439,9 @@ export class GameEngine {
     this.shootTimer = 0;
     this.evolutionBanner = 0;
     this.novaFlash = 0;
+    this.lastNovaRadius = 220;
+    this.auraPulseTimer = 0;
+    this.orbitalBurstTimer = 0;
     this.bossPulseFlash = 0;
     this.wave = 1;
     this.kills = 0;
@@ -474,6 +480,8 @@ export class GameEngine {
     this.evolvedSkills.clear();
     this.fusedSourceSkills.clear();
     this.orbitalPulseTimer = 0;
+    this.auraPulseTimer = 0;
+    this.orbitalBurstTimer = 0;
     this.ownedSkillOrder = [];
     this.swarmGenome = {
       aggression: 0.56,
@@ -607,19 +615,19 @@ export class GameEngine {
             7,
             this.player.orbitalCount + (appliedLevel === 1 ? 2 : 1),
           );
-          this.player.orbitalDamage += appliedLevel === 1 ? 4 : 3;
+          this.player.orbitalDamage += appliedLevel === 1 ? 8 : 5;
           break;
         case 'nova':
           if (this.player.novaInterval <= 0) {
-            this.player.novaInterval = 7;
-            this.player.novaDamage = 58;
+            this.player.novaInterval = 5.6;
+            this.player.novaDamage = 110;
             this.player.novaTimer = 0;
           } else {
             this.player.novaInterval = Math.max(
-              2.6,
-              this.player.novaInterval * 0.86,
+              1.9,
+              this.player.novaInterval * 0.8,
             );
-            this.player.novaDamage *= 1.22;
+            this.player.novaDamage *= 1.32;
           }
           break;
         case 'xpGain':
@@ -636,11 +644,11 @@ export class GameEngine {
           break;
         case 'toxinAura':
           if (this.player.auraDamage <= 0) {
-            this.player.auraDamage = 14;
-            this.player.auraRadius = 105;
+            this.player.auraDamage = 26;
+            this.player.auraRadius = 135;
           } else {
-            this.player.auraDamage *= 1.24;
-            this.player.auraRadius += 12;
+            this.player.auraDamage *= 1.32;
+            this.player.auraRadius += 18;
           }
           break;
         case 'chain':
@@ -827,12 +835,12 @@ export class GameEngine {
         return `Lv ${nextLevel}: 넉백 +22`;
       case 'orbital':
         return nextLevel === 1
-          ? 'Lv 1: 오비탈 2개 해금 / 기본 피해 18 / 회전속도 강화'
-          : `Lv ${nextLevel}: 오비탈 +1 / 오비탈 피해 +3 / 접촉 판정 강화`;
+          ? 'Lv 1: 오비탈 2개 / 피해 22 / 대형 접촉 판정 / 주기적 Micro Burst'
+          : `Lv ${nextLevel}: 오비탈 +1 / 오비탈 피해 +5 / Burst 주기 단축`;
       case 'nova':
         return nextLevel === 1
-          ? 'Lv 1: 7초마다 반경 220, 피해 58 Nova 해금'
-          : `Lv ${nextLevel}: Nova 주기 ×0.86 / 피해 ×1.22`;
+          ? 'Lv 1: 5.6초마다 대형 충격파 / 기본피해 110 + 공격력 비례 / 반경 270'
+          : `Lv ${nextLevel}: 충격파 주기 ×0.80 / 기본피해 ×1.32 / 범위·넉백 증가`;
       case 'xpGain':
         return `Lv ${nextLevel}: 경험치 획득 배율 +0.25`;
       case 'bossDamage':
@@ -843,8 +851,8 @@ export class GameEngine {
         return `Lv ${nextLevel}: 일반 적 처치 회복 +0.8 HP`;
       case 'toxinAura':
         return nextLevel === 1
-          ? 'Lv 1: 반경 105 / DPS 14 독성 오라 해금'
-          : `Lv ${nextLevel}: 오라 DPS ×1.24 / 반경 +12`;
+          ? 'Lv 1: 반경 135 / DPS 26 + 공격력 비례 / 주기적 Toxic Pulse'
+          : `Lv ${nextLevel}: 오라 DPS ×1.32 / 반경 +18 / Pulse 강화`;
       case 'chain':
         return `Lv ${nextLevel}: 연쇄 발동률 +18%p / 연쇄 피해 배율 +0.08`;
       case 'shield':
@@ -3161,11 +3169,24 @@ export class GameEngine {
 
   private updateAbilities(dt: number) {
     if (this.player.auraDamage > 0 && this.player.auraRadius > 0) {
+      const toxinLevel = this.getUpgradeLevel('toxinAura');
       const toxinFusionCount = this.fusionCountFor('toxinAura');
       const auraDamage =
-        this.player.auraDamage * (1 + toxinFusionCount * 0.18);
+        (
+          this.player.auraDamage +
+          this.player.damage * (0.14 + toxinLevel * 0.035)
+        ) *
+        (1 + toxinFusionCount * 0.22);
       const auraRadius =
-        this.player.auraRadius * (1 + toxinFusionCount * 0.045);
+        this.player.auraRadius *
+        (1 + toxinFusionCount * 0.06);
+
+      this.auraPulseTimer += dt;
+      const pulseInterval = Math.max(
+        0.72,
+        1.28 - toxinLevel * 0.09,
+      );
+
       for (const fly of this.spatial.query(
         this.player.x,
         this.player.y,
@@ -3174,7 +3195,7 @@ export class GameEngine {
         if (fly.hp <= 0) continue;
         if (
           Math.hypot(fly.x - this.player.x, fly.y - this.player.y) <=
-          auraRadius
+          auraRadius + fly.radius
         ) {
           fly.hp -= auraDamage * dt;
           if (fly.hp <= 0) this.killFly(fly);
@@ -3189,16 +3210,55 @@ export class GameEngine {
         ) <= auraRadius + this.boss.radius
       ) {
         this.damageBoss(
-          auraDamage * 0.7 * dt * this.player.bossDamage,
+          auraDamage * 0.95 * dt * this.player.bossDamage,
         );
       }
+
+      if (this.auraPulseTimer >= pulseInterval) {
+        this.auraPulseTimer = 0;
+        const pulseDamage =
+          auraDamage * (0.62 + toxinLevel * 0.09);
+        this.damageCircle(
+          this.player.x,
+          this.player.y,
+          auraRadius,
+          pulseDamage,
+        );
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          auraRadius * 0.42,
+          auraRadius,
+          '#9ce84d',
+          0.34,
+          4,
+        );
+        this.spawnParticles(
+          this.player.x,
+          this.player.y,
+          '#9ce84d',
+          10 + toxinLevel * 3,
+          70 + toxinLevel * 8,
+        );
+      }
+    } else {
+      this.auraPulseTimer = 0;
     }
 
     if (this.player.orbitalCount > 0) {
+      const orbitalLevel = this.getUpgradeLevel('orbital');
       const orbitalFusionCount = this.fusionCountFor('orbital');
       const resonance = this.evolvedSkills.has('ganglionResonance');
       const toxinHalo = this.evolvedSkills.has('vesicleSecretionHalo');
       const lattice = this.evolvedSkills.has('synapticLattice');
+
+      this.orbitalBurstTimer += dt;
+      const burstInterval = Math.max(
+        0.44,
+        0.78 - orbitalLevel * 0.055,
+      );
+      const orbitalBurst = this.orbitalBurstTimer >= burstInterval;
+      if (orbitalBurst) this.orbitalBurstTimer = 0;
 
       if (lattice) {
         this.orbitalPulseTimer += dt;
@@ -3210,26 +3270,29 @@ export class GameEngine {
 
       const orbitalMultiplier =
         1 +
-        orbitalFusionCount * 0.35 +
-        (resonance ? 0.42 : 0);
+        orbitalFusionCount * 0.38 +
+        (resonance ? 0.46 : 0);
 
       for (let i = 0; i < this.player.orbitalCount; i += 1) {
         const angle =
-          this.time * 3.05 +
+          this.time * 3.75 +
           (i / this.player.orbitalCount) * TAU;
         const orbitRadius =
-          this.player.orbitalCount >= 5 && i % 2 === 1 ? 96 : 70;
+          this.player.orbitalCount >= 5 && i % 2 === 1 ? 104 : 76;
         const x = this.player.x + Math.cos(angle) * orbitRadius;
         const y = this.player.y + Math.sin(angle) * orbitRadius;
-        const hitRadius = 17;
-        const candidates = this.spatial.query(x, y, 38);
+        const hitRadius = 25;
+        const candidates = this.spatial.query(x, y, 58);
 
         for (const fly of candidates) {
           if (fly.hp <= 0) continue;
-          if (Math.hypot(fly.x - x, fly.y - y) < fly.radius + hitRadius) {
+          if (
+            Math.hypot(fly.x - x, fly.y - y) <
+            fly.radius + hitRadius
+          ) {
             fly.hp -=
               this.player.orbitalDamage *
-              8.2 *
+              11.5 *
               orbitalMultiplier *
               dt;
             if (fly.hp <= 0) this.killFly(fly);
@@ -3243,30 +3306,54 @@ export class GameEngine {
         ) {
           this.damageBoss(
             this.player.orbitalDamage *
-              6.3 *
+              8.8 *
               orbitalMultiplier *
               dt *
               this.player.bossDamage,
           );
         }
 
+        if (orbitalBurst) {
+          const burstRadius = 38 + orbitalLevel * 2.5;
+          const burstDamage =
+            this.player.orbitalDamage *
+            (1.35 + orbitalLevel * 0.16) *
+            orbitalMultiplier;
+          this.damageCircle(x, y, burstRadius, burstDamage);
+          if (i % 2 === 0) {
+            this.spawnRing(
+              x,
+              y,
+              8,
+              burstRadius,
+              '#ffcf57',
+              0.2,
+              2.5,
+            );
+          }
+        }
+
         if (toxinHalo) {
-          const haloDps = Math.max(18, this.player.auraDamage * 0.72);
-          this.damageCircle(x, y, 46, haloDps * dt);
+          const haloDps = Math.max(
+            28,
+            this.player.auraDamage * 0.86,
+          );
+          this.damageCircle(x, y, 52, haloDps * dt);
         }
 
         if (latticePulse) {
           this.damageCircle(
             x,
             y,
-            58,
-            this.player.orbitalDamage * 2.6 * orbitalMultiplier,
+            66,
+            this.player.orbitalDamage * 3.1 * orbitalMultiplier,
           );
-          this.spawnRing(x, y, 10, 62, '#b8ff70', 0.28, 3);
+          this.spawnRing(x, y, 10, 70, '#b8ff70', 0.28, 3);
         }
       }
     } else {
       this.orbitalPulseTimer = 0;
+      this.orbitalBurstTimer = 0;
     }
 
     if (this.player.novaInterval > 0) {
@@ -3274,16 +3361,22 @@ export class GameEngine {
       if (this.player.novaTimer >= this.player.novaInterval) {
         this.player.novaTimer = 0;
         this.novaFlash = 0.5;
+        const novaLevel = this.getUpgradeLevel('nova');
         const resonance = this.evolvedSkills.has('ganglionResonance');
         const novaFusionCount = this.fusionCountFor('nova');
         const radius =
-          220 *
-          (1 + novaFusionCount * 0.075) *
-          (resonance ? 1.18 : 1);
+          (255 + novaLevel * 15) *
+          (1 + novaFusionCount * 0.09) *
+          (resonance ? 1.2 : 1);
         const damage =
-          this.player.novaDamage *
-          (1 + novaFusionCount * 0.16) *
-          (resonance ? 1.22 : 1);
+          (
+            this.player.novaDamage +
+            this.player.damage * (1.15 + novaLevel * 0.22)
+          ) *
+          (1 + novaFusionCount * 0.2) *
+          (resonance ? 1.24 : 1);
+
+        this.lastNovaRadius = radius;
         this.damageCircle(
           this.player.x,
           this.player.y,
@@ -3291,14 +3384,28 @@ export class GameEngine {
           damage,
         );
 
-        if (resonance) {
+        if (!resonance) {
+          for (const fly of this.flies) {
+            if (fly.hp <= 0) continue;
+            const dx = fly.x - this.player.x;
+            const dy = fly.y - this.player.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > 0 && distance < radius) {
+              const push =
+                (55 + novaLevel * 18) *
+                (1 - distance / radius * 0.45);
+              fly.x += (dx / distance) * push;
+              fly.y += (dy / distance) * push;
+            }
+          }
+        } else {
           for (const fly of this.flies) {
             if (fly.hp <= 0) continue;
             const dx = this.player.x - fly.x;
             const dy = this.player.y - fly.y;
             const distance = Math.hypot(dx, dy);
-            if (distance > 0 && distance < 500) {
-              const pull = 90 * (1 - distance / 500);
+            if (distance > 0 && distance < 520) {
+              const pull = 110 * (1 - distance / 520);
               fly.x += (dx / distance) * pull;
               fly.y += (dy / distance) * pull;
             }
@@ -3314,11 +3421,11 @@ export class GameEngine {
           this.damageFields.push({
             x: this.player.x,
             y: this.player.y,
-            radius: toxic ? 150 : 135,
-            life: toxic ? 3.4 : 2.8,
-            maxLife: toxic ? 3.4 : 2.8,
+            radius: toxic ? 175 : 155,
+            life: toxic ? 3.8 : 3.1,
+            maxLife: toxic ? 3.8 : 3.1,
             damage:
-              this.player.novaDamage * (toxic ? 0.24 : 0.18),
+              damage * (toxic ? 0.22 : 0.16),
             pulseTimer: 0,
           });
         }
@@ -3327,21 +3434,30 @@ export class GameEngine {
           this.player.x,
           this.player.y,
           resonance ? '#ffffff' : '#5beaff',
-          resonance ? 48 : 28,
-          resonance ? 240 : 180,
+          resonance ? 58 : 40,
+          resonance ? 275 : 225,
         );
         this.spawnRing(
           this.player.x,
           this.player.y,
-          24,
+          28,
           radius,
           resonance ? '#ffffff' : '#5beaff',
-          0.55,
-          resonance ? 9 : 5,
+          0.58,
+          resonance ? 10 : 7,
+        );
+        this.spawnRing(
+          this.player.x,
+          this.player.y,
+          radius * 0.28,
+          radius * 0.72,
+          '#ffffff',
+          0.34,
+          2.5,
         );
         this.screenShake = Math.max(
           this.screenShake,
-          resonance ? 11 : 5,
+          resonance ? 13 : 8,
         );
       }
     }
@@ -4932,10 +5048,28 @@ export class GameEngine {
     ctx.stroke();
 
     if (this.player.auraRadius > 0) {
-      ctx.strokeStyle = 'rgba(199,255,69,.18)';
-      ctx.lineWidth = 3;
+      const auraPulse = 0.5 + Math.sin(this.time * 3.2) * 0.5;
+      ctx.fillStyle = `rgba(156,232,77,${0.018 + auraPulse * 0.018})`;
       ctx.beginPath();
       ctx.arc(0, 0, this.player.auraRadius, 0, TAU);
+      ctx.fill();
+
+      ctx.strokeStyle = `rgba(199,255,69,${0.25 + auraPulse * 0.16})`;
+      ctx.lineWidth = 3.5;
+      ctx.beginPath();
+      ctx.arc(0, 0, this.player.auraRadius, 0, TAU);
+      ctx.stroke();
+
+      ctx.strokeStyle = 'rgba(156,232,77,.16)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.arc(
+        0,
+        0,
+        this.player.auraRadius * (0.58 + auraPulse * 0.08),
+        0,
+        TAU,
+      );
       ctx.stroke();
     }
 
@@ -5254,10 +5388,10 @@ export class GameEngine {
 
       for (let i = 0; i < this.player.orbitalCount; i += 1) {
         const angle =
-          this.time * 3.05 +
+          this.time * 3.75 +
           (i / this.player.orbitalCount) * TAU;
         const orbitRadius =
-          this.player.orbitalCount >= 5 && i % 2 === 1 ? 96 : 70;
+          this.player.orbitalCount >= 5 && i % 2 === 1 ? 104 : 76;
         const x = this.player.x + Math.cos(angle) * orbitRadius;
         const y = this.player.y + Math.sin(angle) * orbitRadius;
 
@@ -5280,12 +5414,12 @@ export class GameEngine {
         ctx.shadowColor = '#ffcf57';
         ctx.shadowBlur = 16;
         ctx.beginPath();
-        ctx.arc(x, y, 9.5, 0, TAU);
+        ctx.arc(x, y, 12, 0, TAU);
         ctx.fill();
 
         ctx.fillStyle = '#fff6ca';
         ctx.beginPath();
-        ctx.arc(x, y, 3.2, 0, TAU);
+        ctx.arc(x, y, 4, 0, TAU);
         ctx.fill();
       }
       ctx.shadowBlur = 0;
@@ -5299,7 +5433,7 @@ export class GameEngine {
       ctx.arc(
         this.player.x,
         this.player.y,
-        40 + progress * 180,
+        40 + progress * Math.max(180, this.lastNovaRadius - 40),
         0,
         TAU,
       );
