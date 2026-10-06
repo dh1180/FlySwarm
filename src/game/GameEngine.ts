@@ -325,7 +325,6 @@ export class GameEngine {
   private finalBossDefeated = false;
   private finalMemoryDriveBias = 0;
   private finalMemoryVigilance = 0;
-  private lastFinalPhase = 0;
   private last = 0;
   private time = 0;
   private hudTimer = 0;
@@ -460,7 +459,6 @@ export class GameEngine {
     this.finalBossDefeated = false;
     this.finalMemoryDriveBias = 0;
     this.finalMemoryVigilance = 0;
-    this.lastFinalPhase = 0;
     this.mushroomBody.resetEpisode();
     this.defeatedBosses.clear();
     for (const key of Object.keys(this.upgradeLevels) as UpgradeKey[]) {
@@ -1479,7 +1477,6 @@ export class GameEngine {
     this.bossPenaltyBuffer = 0;
     this.finalMemoryDriveBias = 0;
     this.finalMemoryVigilance = 0;
-    this.lastFinalPhase = 0;
     this.mushroomBody.resetEpisode();
     this.brain.reset();
 
@@ -1547,7 +1544,6 @@ export class GameEngine {
     this.bossPenaltyBuffer = 0;
     this.finalMemoryDriveBias = 0;
     this.finalMemoryVigilance = 0;
-    this.lastFinalPhase = 1;
     this.mushroomBody.resetEpisode();
     this.brain.reset();
 
@@ -1759,7 +1755,6 @@ export class GameEngine {
       const nextPhase = hpRatio > 0.7 ? 1 : hpRatio > 0.35 ? 2 : 3;
       if (nextPhase !== boss.phase) {
         boss.phase = nextPhase;
-        this.lastFinalPhase = nextPhase;
         this.callbacks.onSound('finalBossPhase');
         this.screenShake = Math.max(this.screenShake, 18 + nextPhase * 3);
         this.spawnRing(
