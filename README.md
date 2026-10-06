@@ -7,6 +7,11 @@
 **수백 마리의 Utility AI 초파리와, 실제 초파리 커넥톰에서 유래한 spiking simulation 보스를 상대하는 브라우저 생존 게임입니다.**
 
 <p>
+  <a href="https://jolly-maamoul-773d3c.netlify.app/"><img src="https://img.shields.io/badge/%E2%96%B6%20PLAY%20LIVE-Netlify-00C7B7?style=for-the-badge&logo=netlify&logoColor=white" /></a>
+  <a href="https://github.com/dh1180/FlySwarm"><img src="https://img.shields.io/badge/GitHub-Repository-181717?style=for-the-badge&logo=github&logoColor=white" /></a>
+</p>
+
+<p>
   <img src="https://img.shields.io/badge/React-19.3-61DAFB?style=flat-square&logo=react&logoColor=111111" />
   <img src="https://img.shields.io/badge/TypeScript-7.0-3178C6?style=flat-square&logo=typescript&logoColor=white" />
   <img src="https://img.shields.io/badge/Vite-8.3-646CFF?style=flat-square&logo=vite&logoColor=white" />
@@ -15,6 +20,20 @@
   <img src="https://img.shields.io/badge/Web%20Audio-Procedural-C77DFF?style=flat-square" />
   <img src="https://github.com/dh1180/FlySwarm/actions/workflows/ci.yml/badge.svg" />
 </p>
+
+</div>
+
+---
+
+## 🎮 Play Online
+
+<div align="center">
+
+### **[▶ ENTER THE SWARM](https://jolly-maamoul-773d3c.netlify.app/)**
+
+브라우저에서 설치 없이 바로 플레이할 수 있습니다.
+
+[![Netlify](https://img.shields.io/badge/Live%20Demo-Netlify-00C7B7?style=flat-square&logo=netlify&logoColor=white)](https://jolly-maamoul-773d3c.netlify.app/)
 
 </div>
 
