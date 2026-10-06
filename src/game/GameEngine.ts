@@ -225,6 +225,74 @@ const offensiveSkillKeys: UpgradeKey[] = [
   'meteor',
 ];
 
+const fusionRuntimeCoverage: Record<EvolutionKey, true> = {
+  ganglionResonance: true,
+  vesicleSecretionHalo: true,
+  axonalSatellite: true,
+  synapticLattice: true,
+  glialOrbitalCascade: true,
+  depolarizationToxinBurst: true,
+  spikePropagation: true,
+  ganglionWavefront: true,
+  calciumWave: true,
+  venomAxon: true,
+  neuroglialMatrix: true,
+  hemolymphCascade: true,
+  axonMesh: true,
+  synapticBarrage: true,
+  glialCalciumStorm: true,
+};
+
+const validateFusionCatalog = () => {
+  const pairKey = (a: UpgradeKey, b: UpgradeKey) =>
+    [a, b].sort().join('::');
+
+  const recipeKeys = new Set<string>();
+  const evolutionKeys = new Set<EvolutionKey>();
+
+  for (const evolution of evolutionCatalog) {
+    if (!fusionRuntimeCoverage[evolution.key]) {
+      throw new Error(`Missing runtime coverage for ${evolution.key}`);
+    }
+    if (evolutionKeys.has(evolution.key)) {
+      throw new Error(`Duplicate fusion key: ${evolution.key}`);
+    }
+    evolutionKeys.add(evolution.key);
+
+    const [a, b] = evolution.requirements;
+    if (a === b) {
+      throw new Error(`Fusion cannot reuse the same source: ${evolution.key}`);
+    }
+    const pair = pairKey(a, b);
+    if (recipeKeys.has(pair)) {
+      throw new Error(`Duplicate fusion recipe: ${pair}`);
+    }
+    recipeKeys.add(pair);
+  }
+
+  const expectedPairs =
+    (offensiveSkillKeys.length * (offensiveSkillKeys.length - 1)) / 2;
+  if (evolutionCatalog.length !== expectedPairs) {
+    throw new Error(
+      `Fusion catalog must cover all pairs: expected ${expectedPairs}, got ${evolutionCatalog.length}`,
+    );
+  }
+
+  for (let i = 0; i < offensiveSkillKeys.length; i += 1) {
+    for (let j = i + 1; j < offensiveSkillKeys.length; j += 1) {
+      const pair = pairKey(
+        offensiveSkillKeys[i],
+        offensiveSkillKeys[j],
+      );
+      if (!recipeKeys.has(pair)) {
+        throw new Error(`Missing fusion recipe: ${pair}`);
+      }
+    }
+  }
+};
+
+validateFusionCatalog();
+
 type Callbacks = {
   onHud: (hud: HudSnapshot) => void;
   onLevelUp: (options: UpgradeOption[], context: RewardContext) => void;
@@ -290,6 +358,8 @@ export class GameEngine {
   private readonly defeatedBosses = new Set<BossKind>();
   private readonly upgradeLevels: Partial<Record<UpgradeKey, number>> = {};
   private readonly evolvedSkills = new Set<EvolutionKey>();
+  private readonly fusedSourceSkills = new Set<UpgradeKey>();
+  private orbitalPulseTimer = 0;
   private ownedSkillOrder: SkillKey[] = [];
   private swarmGenome: Genome = {
     aggression: 0.56,
@@ -378,6 +448,8 @@ export class GameEngine {
       delete this.upgradeLevels[key];
     }
     this.evolvedSkills.clear();
+    this.fusedSourceSkills.clear();
+    this.orbitalPulseTimer = 0;
     this.ownedSkillOrder = [];
     this.swarmGenome = {
       aggression: 0.56,
@@ -409,6 +481,9 @@ export class GameEngine {
       }
 
       this.evolvedSkills.add(key);
+      for (const source of evolution.requirements) {
+        this.fusedSourceSkills.add(source);
+      }
       this.ownedSkillOrder.push(key);
       this.spawnRing(
         this.player.x,
@@ -491,8 +566,11 @@ export class GameEngine {
         this.player.knockback += 22;
         break;
       case 'orbital':
-        this.player.orbitalCount = Math.min(6, this.player.orbitalCount + 1);
-        this.player.orbitalDamage += 1.5;
+        this.player.orbitalCount = Math.min(
+          7,
+          this.player.orbitalCount + (nextLevel === 1 ? 2 : 1),
+        );
+        this.player.orbitalDamage += nextLevel === 1 ? 4 : 3;
         break;
       case 'nova':
         if (this.player.novaInterval <= 0) {
@@ -637,18 +715,10 @@ export class GameEngine {
       const definition = upgradeCatalog.find((item) => item.key === key);
       return (
         definition !== undefined &&
-        this.getUpgradeLevel(key) >= definition.maxLevel
+        this.getUpgradeLevel(key) >= definition.maxLevel &&
+        !this.fusedSourceSkills.has(key)
       );
     });
-  }
-
-  private hasFusion(a: UpgradeKey, b: UpgradeKey) {
-    return evolutionCatalog.some(
-      (evolution) =>
-        this.evolvedSkills.has(evolution.key) &&
-        evolution.requirements.includes(a) &&
-        evolution.requirements.includes(b),
-    );
   }
 
   private fusionCountFor(key: UpgradeKey) {
@@ -688,7 +758,9 @@ export class GameEngine {
       case 'knockback':
         return `Lv ${nextLevel}: 넉백 +22`;
       case 'orbital':
-        return `Lv ${nextLevel}: 오비탈 +1 / 오비탈 피해 +1.5`;
+        return nextLevel === 1
+          ? 'Lv 1: 오비탈 2개 해금 / 기본 피해 18 / 회전속도 강화'
+          : `Lv ${nextLevel}: 오비탈 +1 / 오비탈 피해 +3 / 접촉 판정 강화`;
       case 'nova':
         return nextLevel === 1
           ? 'Lv 1: 7초마다 반경 220, 피해 58 Nova 해금'
@@ -793,6 +865,11 @@ export class GameEngine {
       const definition = upgradeCatalog.find((item) => item.key === key);
       const level = this.getUpgradeLevel(key);
       if (definition && level > 0) {
+        const fusedEvolution = evolutionCatalog.find(
+          (evolution) =>
+            this.evolvedSkills.has(evolution.key) &&
+            evolution.requirements.includes(key),
+        );
         skills.push({
           key,
           title: definition.title,
@@ -800,6 +877,8 @@ export class GameEngine {
           maxLevel: definition.maxLevel,
           rarity: definition.rarity,
           evolved: false,
+          fusionLocked: Boolean(fusedEvolution),
+          fusedInto: fusedEvolution?.title,
         });
       }
       return skills;
@@ -854,7 +933,7 @@ export class GameEngine {
       armor: 0,
       knockback: 12,
       orbitalCount: 0,
-      orbitalDamage: 10,
+      orbitalDamage: 14,
       novaInterval: 0,
       novaTimer: 0,
       novaDamage: 0,
