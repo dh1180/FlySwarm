@@ -1746,6 +1746,33 @@ export class GameEngine {
     );
 
     const projectileThreat = this.getBossProjectileThreat(boss);
+
+    if (boss.isFinal) {
+      const hpRatio = boss.hp / boss.maxHp;
+      const nextPhase = hpRatio > 0.7 ? 1 : hpRatio > 0.35 ? 2 : 3;
+      if (nextPhase !== boss.phase) {
+        boss.phase = nextPhase;
+        this.lastFinalPhase = nextPhase;
+        this.callbacks.onSound('finalBossPhase');
+        this.screenShake = Math.max(this.screenShake, 18 + nextPhase * 3);
+        this.spawnRing(
+          boss.x,
+          boss.y,
+          30,
+          260 + nextPhase * 55,
+          '#ff4fd8',
+          0.75,
+          8 + nextPhase * 2,
+        );
+        this.spawnParticles(
+          boss.x,
+          boss.y,
+          '#ffffff',
+          35 + nextPhase * 16,
+          210 + nextPhase * 35,
+        );
+      }
+    }
     if (projectileThreat.score > 0.2) {
       if (!boss.threatActive) {
         this.spawnParticles(
@@ -1791,17 +1818,48 @@ export class GameEngine {
       const reward = this.bossRewardBuffer - this.bossPenaltyBuffer;
       if (Math.abs(reward) > 0.0001) {
         this.dopamine.reward(reward);
+        if (boss.isFinal) {
+          this.mushroomBody.reward(reward);
+        }
       }
       this.bossRewardBuffer = 0;
       this.bossPenaltyBuffer = 0;
 
-      const policyAction = this.dopamine.act(brain.output);
-      this.bossPolicyTurn = policyAction.turn;
-      this.bossPolicyDrive = policyAction.drive;
-
       const dx = this.player.x - boss.x;
       const dy = this.player.y - boss.y;
       const distance = Math.hypot(dx, dy) || 1;
+      const proximity = clamp(1 - distance / 1050, 0, 1);
+
+      if (boss.isFinal) {
+        const memory = this.mushroomBody.evaluate(
+          brain.output,
+          projectileThreat.score,
+          proximity,
+          1 - boss.hp / boss.maxHp,
+        );
+        this.finalMemoryDriveBias = memory.driveBias;
+        this.finalMemoryVigilance = memory.vigilance;
+      }
+
+      const policyAction = this.dopamine.act(brain.output);
+      this.bossPolicyTurn = clamp(
+        policyAction.turn +
+          (boss.isFinal
+            ? projectileThreat.side *
+              this.finalMemoryVigilance *
+              0.22
+            : 0),
+        -1,
+        1,
+      );
+      this.bossPolicyDrive = clamp(
+        policyAction.drive +
+          (boss.isFinal
+            ? this.finalMemoryDriveBias * 0.72
+            : 0),
+        -1,
+        1,
+      );
 
       const towardPlayer = normalize(dx, dy);
       const rightX = -Math.sin(boss.heading);
@@ -1812,7 +1870,10 @@ export class GameEngine {
         1,
       );
       const dodgeWeight = clamp(
-        projectileThreat.score * 1.2,
+        projectileThreat.score *
+          (boss.isFinal
+            ? 1.35 + this.finalMemoryVigilance * 0.55
+            : 1.2),
         0,
         1,
       );
@@ -1822,11 +1883,11 @@ export class GameEngine {
         -1,
         1,
       );
-      const proximity = clamp(1 - distance / 1050, 0, 1);
       const threat = clamp(
         0.06 +
-          proximity * 0.46 +
-          projectileThreat.score * 0.98,
+          proximity * (boss.isFinal ? 0.58 : 0.46) +
+          projectileThreat.score *
+            (boss.isFinal ? 1.18 : 0.98),
         0,
         1,
       );
@@ -1864,7 +1925,10 @@ export class GameEngine {
     const dodgeTurn =
       projectileThreat.side *
       projectileThreat.score *
-      (1.45 + boss.stage * 0.1);
+      (1.45 + boss.stage * 0.1) *
+      (boss.isFinal
+        ? 1.25 + this.finalMemoryVigilance * 0.75
+        : 1);
     const targetAngularVelocity =
       this.bossPolicyTurn *
         3.75 *
@@ -1873,7 +1937,13 @@ export class GameEngine {
       dodgeTurn;
 
     const angularResponse =
-      projectileThreat.score > 0.2 ? 10 : 5.2;
+      projectileThreat.score > 0.2
+        ? boss.isFinal
+          ? 13.5
+          : 10
+        : boss.isFinal
+          ? 6.8
+          : 5.2;
     boss.angularVelocity +=
       (targetAngularVelocity - boss.angularVelocity) *
       clamp(dt * angularResponse, 0, 1);
@@ -1894,7 +1964,9 @@ export class GameEngine {
             ? 0.8
             : boss.kind === 'GLIAL_TITAN'
               ? 0.74
-              : 1.08;
+              : boss.kind === 'VIRTUAL_DROSOPHILA'
+                ? 1.2 + (boss.phase - 1) * 0.1
+                : 1.08;
 
     let drive =
       this.bossPolicyDrive *
@@ -1904,7 +1976,8 @@ export class GameEngine {
 
     if (
       (boss.kind === 'NEURAL_HUNTER' ||
-        boss.kind === 'CONNECTOME_APEX') &&
+        boss.kind === 'CONNECTOME_APEX' ||
+        boss.kind === 'VIRTUAL_DROSOPHILA') &&
       distance < 350 &&
       out.forward > 0.3
     ) {
@@ -1926,16 +1999,21 @@ export class GameEngine {
       const reflexStrength =
         (125 + boss.stage * 24) *
         projectileThreat.score *
-        imminentBoost;
+        imminentBoost *
+        (boss.isFinal
+          ? 1.45 + this.finalMemoryVigilance * 0.8
+          : 1);
       desiredX += projectileThreat.evadeX * reflexStrength;
       desiredY += projectileThreat.evadeY * reflexStrength;
     }
     const baseResponse =
       boss.kind === 'NEURAL_HUNTER'
         ? 5
-        : boss.kind === 'CONNECTOME_APEX'
-          ? 4.7
-          : boss.kind === 'STORM_BRAIN'
+        : boss.kind === 'VIRTUAL_DROSOPHILA'
+          ? 6.6
+          : boss.kind === 'CONNECTOME_APEX'
+            ? 4.7
+            : boss.kind === 'STORM_BRAIN'
             ? 4
             : 3.65;
     const responsiveness = clamp(
@@ -1966,9 +2044,11 @@ export class GameEngine {
           ? 1.28
           : boss.kind === 'GLIAL_TITAN'
             ? 1.48
-            : boss.kind === 'CONNECTOME_APEX'
-              ? 1.38
-              : boss.kind === 'NEURAL_HUNTER'
+            : boss.kind === 'VIRTUAL_DROSOPHILA'
+              ? 1.9 + (boss.phase - 1) * 0.18
+              : boss.kind === 'CONNECTOME_APEX'
+                ? 1.38
+                : boss.kind === 'NEURAL_HUNTER'
                 ? 1.12
                 : 1;
       this.damagePlayerFromBoss(
@@ -1989,15 +2069,23 @@ export class GameEngine {
           ? 1.7
           : boss.kind === 'GLIAL_TITAN'
             ? 1.85
-            : boss.kind === 'CONNECTOME_APEX'
-              ? 1.5
-              : 2.25;
+            : boss.kind === 'VIRTUAL_DROSOPHILA'
+              ? boss.phase === 1
+                ? 1.15
+                : boss.phase === 2
+                  ? 0.9
+                  : 0.68
+              : boss.kind === 'CONNECTOME_APEX'
+                ? 1.5
+                : 2.25;
       const pulseDamageScale =
         boss.kind === 'GLIAL_TITAN'
           ? 1.28
-          : boss.kind === 'CONNECTOME_APEX'
-            ? 1.42
-            : boss.kind === 'STORM_BRAIN'
+          : boss.kind === 'VIRTUAL_DROSOPHILA'
+            ? 1.85 + (boss.phase - 1) * 0.22
+            : boss.kind === 'CONNECTOME_APEX'
+              ? 1.42
+              : boss.kind === 'STORM_BRAIN'
               ? 1.18
               : 1;
 
