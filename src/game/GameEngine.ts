@@ -2274,101 +2274,278 @@ export class GameEngine {
       return;
     }
 
-    boss.specialCooldown = 2.7 * boss.cooldownScale;
+    if (boss.kind === 'CONNECTOME_APEX') {
+      boss.specialCooldown = 2.7 * boss.cooldownScale;
 
-    const radialCount = 18;
+      const radialCount = 18;
+      for (let i = 0; i < radialCount; i += 1) {
+        const angle =
+          (i / radialCount) * TAU + this.time * 0.46;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (215 + this.wave * 4) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (215 + this.wave * 4) *
+            boss.speedScale,
+          radius: 6.5,
+          damage:
+            (9.5 + this.wave * 0.65) * boss.damageScale,
+          life: 4.5,
+          color: '#ff5b63',
+          bossOwned: true,
+        });
+      }
+
+      for (let i = -2; i <= 2; i += 1) {
+        const angle = Math.atan2(dy, dx) + i * 0.13;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (315 + this.wave * 5) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (315 + this.wave * 5) *
+            boss.speedScale,
+          radius: 5.5,
+          damage:
+            (10.5 + this.wave * 0.7) * boss.damageScale,
+          life: 3.6,
+          color: '#ffffff',
+          bossOwned: true,
+        });
+      }
+
+      this.callbacks.onSound('bossStrikeCharge');
+      const apexOffsets = [
+        { x: 0, y: 0 },
+        { x: 125, y: -70 },
+        { x: -125, y: 70 },
+      ];
+      for (const offset of apexOffsets) {
+        const x = clamp(
+          this.player.x + offset.x,
+          80,
+          WORLD_WIDTH - 80,
+        );
+        const y = clamp(
+          this.player.y + offset.y,
+          80,
+          WORLD_HEIGHT - 80,
+        );
+        this.bossStrikes.push({
+          x,
+          y,
+          timer: 0.46,
+          maxTimer: 0.46,
+          radius: 88,
+          damage:
+            (15 + this.wave * 0.95) * boss.damageScale,
+          color: '#ff5b63',
+        });
+        this.spawnRing(x, y, 18, 88, '#ff5b63', 0.46, 4);
+      }
+
+      for (let i = 0; i < 4; i += 1) {
+        const minion = this.createFly();
+        minion.x = clamp(
+          boss.x + randomRange(-120, 120),
+          20,
+          WORLD_WIDTH - 20,
+        );
+        minion.y = clamp(
+          boss.y + randomRange(-120, 120),
+          20,
+          WORLD_HEIGHT - 20,
+        );
+        minion.kind = i % 2 === 0 ? 'BOMBER' : 'SPITTER';
+        minion.hp *= 1.7;
+        minion.maxHp = minion.hp;
+        this.flies.push(minion);
+      }
+      return;
+    }
+
+    // VIRTUAL DROSOPHILA: no minions. Its learned valence changes the mix
+    // between pursuit fire and avoidance-oriented area denial.
+    const memory = this.mushroomBody.getSnapshot();
+    const approachBias = clamp(
+      0.5 + (memory.approach - memory.avoidance),
+      0,
+      1,
+    );
+    const avoidBias = clamp(
+      0.5 + (memory.avoidance - memory.approach),
+      0,
+      1,
+    );
+    const phase = boss.phase;
+
+    const cooldownBase =
+      phase === 1 ? 1.72 : phase === 2 ? 1.28 : 0.96;
+    boss.specialCooldown =
+      cooldownBase *
+      Math.max(0.72, boss.cooldownScale * 1.55);
+
+    const radialCount =
+      phase === 1 ? 20 : phase === 2 ? 26 : 32;
+    const radialSpeed =
+      (225 + phase * 34 + avoidBias * 55) * boss.speedScale;
+
     for (let i = 0; i < radialCount; i += 1) {
       const angle =
-        (i / radialCount) * TAU + this.time * 0.46;
+        (i / radialCount) * TAU +
+        this.time * (0.44 + phase * 0.12) +
+        (i % 2) * 0.035;
       this.enemyShots.push({
         x: boss.x,
         y: boss.y,
-        vx:
-          Math.cos(angle) *
-          (215 + this.wave * 4) *
-          boss.speedScale,
-        vy:
-          Math.sin(angle) *
-          (215 + this.wave * 4) *
-          boss.speedScale,
-        radius: 6.5,
+        vx: Math.cos(angle) * radialSpeed,
+        vy: Math.sin(angle) * radialSpeed,
+        radius: phase === 3 && i % 2 === 0 ? 7 : 5.8,
         damage:
-          (9.5 + this.wave * 0.65) * boss.damageScale,
-        life: 4.5,
-        color: '#ff5b63',
+          (7.2 + this.wave * 0.48 + phase * 1.2) *
+          boss.damageScale,
+        life: 4.8,
+        color: i % 2 === 0 ? '#ff4fd8' : '#ffffff',
         bossOwned: true,
       });
     }
 
-    for (let i = -2; i <= 2; i += 1) {
-      const angle = Math.atan2(dy, dx) + i * 0.13;
+    const aimedCount =
+      phase === 1
+        ? 5
+        : phase === 2
+          ? 7
+          : 9;
+    const aimedSpread =
+      phase === 3 ? 0.095 : 0.12;
+
+    for (let i = 0; i < aimedCount; i += 1) {
+      const centered = i - (aimedCount - 1) / 2;
+      const angle =
+        Math.atan2(dy, dx) +
+        centered * aimedSpread;
+      const speed =
+        (350 +
+          phase * 38 +
+          approachBias * 95) *
+        boss.speedScale;
+
       this.enemyShots.push({
         x: boss.x,
         y: boss.y,
-        vx:
-          Math.cos(angle) *
-          (315 + this.wave * 5) *
-          boss.speedScale,
-        vy:
-          Math.sin(angle) *
-          (315 + this.wave * 5) *
-          boss.speedScale,
-        radius: 5.5,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 5.2,
         damage:
-          (10.5 + this.wave * 0.7) * boss.damageScale,
-        life: 3.6,
+          (8.5 + this.wave * 0.56 + phase * 1.6) *
+          boss.damageScale,
+        life: 3.4,
         color: '#ffffff',
         bossOwned: true,
       });
     }
 
+    const strikeCount =
+      phase === 1
+        ? 2
+        : phase === 2
+          ? 4
+          : 6;
+    const strikeRadius =
+      phase === 3 ? 86 : 78;
+
     this.callbacks.onSound('bossStrikeCharge');
-    const apexOffsets = [
-      { x: 0, y: 0 },
-      { x: 125, y: -70 },
-      { x: -125, y: 70 },
-    ];
-    for (const offset of apexOffsets) {
+    for (let i = 0; i < strikeCount; i += 1) {
+      const angle =
+        (i / strikeCount) * TAU +
+        this.time * 0.28;
+      const spread =
+        72 + i * 22 + avoidBias * 34;
       const x = clamp(
-        this.player.x + offset.x,
-        80,
-        WORLD_WIDTH - 80,
+        this.player.x + Math.cos(angle) * spread,
+        90,
+        WORLD_WIDTH - 90,
       );
       const y = clamp(
-        this.player.y + offset.y,
-        80,
-        WORLD_HEIGHT - 80,
+        this.player.y + Math.sin(angle) * spread,
+        90,
+        WORLD_HEIGHT - 90,
       );
+
       this.bossStrikes.push({
         x,
         y,
-        timer: 0.46,
-        maxTimer: 0.46,
-        radius: 88,
+        timer: phase === 3 ? 0.34 : 0.42,
+        maxTimer: phase === 3 ? 0.34 : 0.42,
+        radius: strikeRadius,
         damage:
-          (15 + this.wave * 0.95) * boss.damageScale,
-        color: '#ff5b63',
+          (14 + this.wave * 0.75 + phase * 2.3) *
+          boss.damageScale,
+        color: '#ff4fd8',
       });
-      this.spawnRing(x, y, 18, 88, '#ff5b63', 0.46, 4);
+      this.spawnRing(
+        x,
+        y,
+        16,
+        strikeRadius,
+        '#ff4fd8',
+        phase === 3 ? 0.34 : 0.42,
+        4,
+      );
     }
 
-    for (let i = 0; i < 4; i += 1) {
-      const minion = this.createFly();
-      minion.x = clamp(
-        boss.x + randomRange(-120, 120),
-        20,
-        WORLD_WIDTH - 20,
-      );
-      minion.y = clamp(
-        boss.y + randomRange(-120, 120),
-        20,
-        WORLD_HEIGHT - 20,
-      );
-      minion.kind = i % 2 === 0 ? 'BOMBER' : 'SPITTER';
-      minion.hp *= 1.7;
-      minion.maxHp = minion.hp;
-      this.flies.push(minion);
+    if (phase >= 2) {
+      const waveCount = phase === 2 ? 8 : 12;
+      for (let i = 0; i < waveCount; i += 1) {
+        const angle =
+          boss.heading +
+          (i / waveCount) * TAU +
+          Math.sin(this.time * 1.7) * 0.12;
+        const speed =
+          (170 + (i % 3) * 55) * boss.speedScale;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: 8.2,
+          damage:
+            (7 + this.wave * 0.45 + phase) *
+            boss.damageScale,
+          life: 5.2,
+          color: '#8cf5ff',
+          bossOwned: true,
+        });
+      }
     }
+
+    this.spawnParticles(
+      boss.x,
+      boss.y,
+      '#ff4fd8',
+      18 + phase * 8,
+      160 + phase * 30,
+    );
+    this.spawnRing(
+      boss.x,
+      boss.y,
+      16,
+      110 + phase * 24,
+      '#ffffff',
+      0.32,
+      4 + phase,
+    );
+  }
+
   }
 
   private updateShooting() {
