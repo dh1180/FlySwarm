@@ -1059,10 +1059,17 @@ export class GameEngine {
     this.updateBossStrikes(dt);
     this.updateEnemyShots(dt);
     this.spatial.rebuild(this.flies);
-    this.updateShooting();
-    this.updateBullets(dt);
-    this.updateAbilities(dt);
-    this.updateDamageFields(dt);
+
+    if (!this.finalBossPending) {
+      this.updateShooting();
+      this.updateBullets(dt);
+      this.updateAbilities(dt);
+      this.updateDamageFields(dt);
+    } else {
+      this.bullets = [];
+      this.damageFields = [];
+    }
+
     this.updateChests(dt);
     this.updateOrbs(dt);
     this.updateVfx(dt);
@@ -4097,6 +4104,9 @@ export class GameEngine {
 
     if (this.player.hp <= 0) {
       this.dopamine.reward(2.5);
+      if (this.boss?.isFinal) {
+        this.mushroomBody.reward(2.5);
+      }
     }
   }
 
