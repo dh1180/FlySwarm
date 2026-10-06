@@ -407,9 +407,141 @@ Lateral Evasion
 
 즉 Connectome / Dopamine Policy를 바꾸지 않고 **몸체가 지속적인 회전 명령을 해석하는 방식**을 개선했습니다.
 
+## 🧠 FINAL — Virtual Drosophila
+
+5단계 Full-Connectome Boss를 모두 처치하면 게임이 즉시 끝나지 않습니다.
+
+```text
+CORE BOSSES 5 / 5
+        ↓
+Arena Purge
+        ↓
+3.25 s Final Initialization
+        ↓
+VIRTUAL DROSOPHILA
+        ↓
+Final 1 vs 1
+        ↓
+GAME CLEAR
+```
+
+Final Encounter가 시작되면 다음 객체를 제거합니다.
+
+- 모든 일반 Fly
+- 모든 Enemy Projectile
+- 남아 있는 Boss Strike
+- Reward Cache
+- XP Orb
+- 기존 Player Projectile
+- 기존 Damage Field
+
+이후 일반몹 Spawn 자체를 잠그므로 최종전은 끝까지 **Player vs Virtual Drosophila 1:1**입니다.
+
+### Final Boss Base Stats
+
+- HP: 최소 **50,000**
+- Damage scale: **×2.15**
+- Movement scale: **×1.46**
+- Special cooldown scale: **×0.48**
+- Giant Fiber projectile evasion 강화
+- 3단계 HP Phase
+
+```text
+Phase 1 : HP > 70%
+Phase 2 : 35% < HP <= 70%
+Phase 3 : HP <= 35%
+```
+
+Phase가 내려갈수록 방사 탄막, 조준탄, Neural Strike 수와 빈도가 증가합니다.
+
+### Whole Connectome + Learned Motor Policy
+
+Virtual Drosophila도 기존 보스와 동일한 Full FlyWire-derived LIF network를 사용합니다.
+
+```text
+Game sensory state
+      ↓
+LPLC2 stimulation
+      ↓
+138,639-neuron-slot whole-connectome graph
+      ↓
+motor / descending population output
+      ↓
+120,000-step pretrained DopaminePolicy
+      ↓
+turn / drive
+```
+
+### Mushroom Body-inspired Plastic Memory
+
+최종 보스에는 추가로 `MushroomBodyMemory`가 연결됩니다.
+
+```text
+Whole-brain output
+Projectile threat
+Player proximity
+HP stress
+      ↓
+96 Kenyon-cell-like sparse units
+      ↓
+Appetitive / Aversive MBON-like readout
+      ↓
+Approach / Avoidance bias
+      ↓
+Boss movement + attack preference
+```
+
+전투 중 reward / punishment는 DAN-like signed signal로 전달됩니다.
+
+- Player에게 피해 성공 → positive
+- Projectile 회피 성공 → positive
+- Boss 피격 → negative
+- Boss 사망 → strong negative
+
+활성 KC-like unit의 MBON-like weight만 수정하며 학습 상태는 `localStorage`에 저장됩니다.
+
+따라서 다음 플레이에서 이전 Final Boss의 Mushroom Body형 memory를 이어서 사용할 수 있습니다.
+
+### Adaptive Attack Preference
+
+Mushroom Body valence는 공격 패턴에도 영향을 줍니다.
+
+- **Approach MBON 우세**
+  - 조준탄 속도 증가
+  - 접근 행동 강화
+- **Avoidance MBON 우세**
+  - 방사 탄막 속도 증가
+  - Player 주변 Neural Strike 분산 증가
+- **Phase 3**
+  - 두 패턴을 동시에 높은 빈도로 사용
+
+### Scientific Boundary
+
+이 기능은 **실제 초파리 whole-connectome을 사용하지만 실제 mushroom body 시냅스 가소성을 완전히 복원한 것은 아닙니다.**
+
+현재 실제 데이터에 해당하는 부분:
+
+- FlyWire FAFB v783-derived whole connectivity graph
+- LPLC2 sensory population
+- Descending / motor population readout
+- Full graph LIF spike propagation
+
+게임에서 추가 설계한 부분:
+
+- 96-unit Kenyon-cell-like sparse encoder
+- MBON-like appetitive / aversive readout
+- DAN-like reward update
+- 가상 몸체 / 공격 패턴 / Boss HP
+
+따라서 정확한 표현은:
+
+> **A learned virtual fruit-fly boss using a whole-connectome-derived spiking nervous system plus a biologically inspired mushroom-body plasticity layer.**
+
+이며, 실제 초파리의 인지 전체나 의식을 복제했다고 주장하지 않습니다.
+
 ## 🏁 Clear / Difficulty
 
-한 판의 최종 목표는 5단계 Full-Connectome Boss를 순서대로 모두 처치하는 것입니다.
+한 판의 첫 번째 목표는 5단계 Full-Connectome Boss를 순서대로 모두 처치하는 것입니다. 이후 Virtual Drosophila Final Encounter까지 승리해야 게임이 완전히 클리어됩니다.
 
 ```text
 WAVE 3  · NEURAL HUNTER
