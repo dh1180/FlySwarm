@@ -246,11 +246,29 @@ Main Game Thread
 
 드랍된 상자의 내부 등급:
 
-| Cache | Chance | Reward |
-|---|---:|---|
-| COMMON | 91.5% | 기존 레벨업과 유사한 3개 Mutation 선택 |
-| RARE | 7.5% | RARE / NEURAL 위주의 강화된 3택 |
-| MYTHIC | 1% | 4개 선택지 + Evolution 가능 시 우선 노출 + NEURAL 우선 |
+| Cache | Chance | Choice | Selected reward |
+|---|---:|---:|---|
+| COMMON | 91.5% | 3개 | 선택 Mutation **+1 Level** |
+| RARE | 7.5% | 4개 | RARE / NEURAL 우선 + 선택 Mutation **+2 Levels** |
+| MYTHIC | 1% | 4개 | Evolution 우선 + RARE / NEURAL 우선 + 선택 Mutation **+3 Levels** |
+
+예를 들어 현재 Lv2인 스킬을 선택하면:
+
+```text
+COMMON  Lv2 → Lv3
+RARE    Lv2 → Lv4
+MYTHIC  Lv2 → Lv5
+```
+
+최대 레벨을 넘는 초과분은 버려지며, 공격 스킬이 이 보상으로 MAX에 도달해 Fusion 조건을 만족하면 즉시 Synaptic Fusion 제안이 이어집니다.
+
+선택 가능한 Mutation이 하나도 남지 않은 경우에는 등급에 따라 최대 HP의 12% / 24% / 40%를 회복합니다.
+
+필드 외형도 등급별로 구분됩니다.
+
+- COMMON — Cyan 단일 Ring
+- RARE — Purple Double Ring + 회전 Neural Node + `RARE ×2`
+- MYTHIC — Gold 강화 Glow + 다중 Ring + 회전 Node + `MYTHIC ×3`
 
 상자는 필드에서 직접 접촉하면 열리며, 일정 시간이 지나면 사라집니다.
 MYTHIC 확률은 Chest가 드랍된 뒤 다시 1%이므로 실제 몹 한 마리 기준으로는 매우 낮습니다.
