@@ -65,6 +65,7 @@ type Boss = {
   dodgeRewardCooldown: number;
   isFinal: boolean;
   phase: number;
+  patternIndex: number;
 };
 
 type EnemyShot = {
@@ -201,6 +202,10 @@ const upgradeCatalog: UpgradeDefinition[] = [
   { key: 'meteor', title: 'Calcium Cascade', description: '표적 위치에 칼슘 신호 폭주를 일으켜 광역 피해', rarity: 'NEURAL', maxLevel: 5 },
   { key: 'ricochet', title: 'Recurrent Circuit', description: '재귀 회로처럼 추가 투사체가 주변 적으로 재전달', rarity: 'RARE', maxLevel: 5 },
   { key: 'execute', title: 'Apoptotic Threshold', description: '저체력 적의 세포사멸 임계점을 이용해 추가 피해', rarity: 'RARE', maxLevel: 5 },
+  { key: 'dendriticVolley', title: 'Dendritic Volley', description: '수상돌기 분지처럼 부채꼴 보조 탄막을 주기적으로 발사', rarity: 'NEURAL', maxLevel: 5 },
+  { key: 'microglialBurst', title: 'Microglial Burst', description: '적 처치 시 미세아교세포성 정리 폭발로 주변 적에게 연쇄 피해', rarity: 'RARE', maxLevel: 5 },
+  { key: 'nociceptiveReflex', title: 'Nociceptive Reflex', description: '피격 시 통각 반사 파동을 방출해 주변 적에게 즉시 반격', rarity: 'RARE', maxLevel: 4 },
+  { key: 'synapticEcho', title: 'Synaptic Echo', description: '기본 자동 공격이 일정 확률로 한 번 더 메아리처럼 반복', rarity: 'NEURAL', maxLevel: 4 },
 ];
 
 const evolutionCatalog: EvolutionDefinition[] = [
@@ -699,6 +704,32 @@ export class GameEngine {
             this.player.executeLevel + 1,
           );
           break;
+        case 'dendriticVolley':
+          this.player.dendriticVolleyLevel = Math.min(
+            5,
+            this.player.dendriticVolleyLevel + 1,
+          );
+          this.player.dendriticVolleyTimer = 0;
+          break;
+        case 'microglialBurst':
+          this.player.microglialBurstLevel = Math.min(
+            5,
+            this.player.microglialBurstLevel + 1,
+          );
+          break;
+        case 'nociceptiveReflex':
+          this.player.nociceptiveReflexLevel = Math.min(
+            4,
+            this.player.nociceptiveReflexLevel + 1,
+          );
+          this.player.nociceptiveReflexCooldown = 0;
+          break;
+        case 'synapticEcho':
+          this.player.synapticEchoLevel = Math.min(
+            4,
+            this.player.synapticEchoLevel + 1,
+          );
+          break;
       }
     }
 
@@ -843,6 +874,19 @@ export class GameEngine {
         return `Lv ${nextLevel}: 튕김 확률 ${12 + nextLevel * 6}% / 피해 ${35 + nextLevel * 8}%`;
       case 'execute':
         return `Lv ${nextLevel}: HP ${(12 + nextLevel * 3.5).toFixed(1)}% 이하 적에게 추가 피해 ${42 + nextLevel * 12}%`;
+      case 'dendriticVolley': {
+        const count = 3 + nextLevel * 2;
+        const interval = Math.max(1.45, 3.15 - nextLevel * 0.28);
+        return `Lv ${nextLevel}: ${count}발 부채꼴 보조탄 / 피해 ${Math.round(36 + nextLevel * 14)}% / 주기 ${interval.toFixed(2)}s`;
+      }
+      case 'microglialBurst':
+        return `Lv ${nextLevel}: 처치 폭발 반경 ${58 + nextLevel * 8} / 피해 ${Math.round(22 + nextLevel * 9)}% 공격력`;
+      case 'nociceptiveReflex': {
+        const cooldown = Math.max(0.95, 2.35 - nextLevel * 0.28);
+        return `Lv ${nextLevel}: 피격 반격 반경 ${115 + nextLevel * 15} / 피해 ${Math.round(55 + nextLevel * 18)}% / 쿨 ${cooldown.toFixed(2)}s`;
+      }
+      case 'synapticEcho':
+        return `Lv ${nextLevel}: 기본 공격 Echo 확률 ${12 + nextLevel * 8}% / Echo 피해 72%`;
     }
     return '';
   }
@@ -1003,6 +1047,12 @@ export class GameEngine {
       meteorTimer: 0,
       ricochetLevel: 0,
       executeLevel: 0,
+      dendriticVolleyLevel: 0,
+      dendriticVolleyTimer: 0,
+      microglialBurstLevel: 0,
+      nociceptiveReflexLevel: 0,
+      nociceptiveReflexCooldown: 0,
+      synapticEchoLevel: 0,
     };
   }
 
@@ -1565,6 +1615,7 @@ export class GameEngine {
       dodgeRewardCooldown: 0,
       isFinal: true,
       phase: 1,
+      patternIndex: 0,
     };
 
     this.finalBossPending = false;
@@ -1664,6 +1715,7 @@ export class GameEngine {
       dodgeRewardCooldown: 0,
       isFinal: false,
       phase: 1,
+      patternIndex: 0,
     };
 
     this.bossBrainTimer = 0;
@@ -4053,6 +4105,41 @@ export class GameEngine {
     }
   }
 
+  private getUpgradeOfferWeight(definition: UpgradeDefinition) {
+    const level = this.getUpgradeLevel(definition.key);
+    const rarityWeight =
+      definition.rarity === 'COMMON'
+        ? 1
+        : definition.rarity === 'RARE'
+          ? 0.82
+          : 0.7;
+    const levelWeight = [1, 1.25, 1.5, 1.8, 2.2, 2.45][
+      Math.min(level, 5)
+    ];
+    return rarityWeight * levelWeight;
+  }
+
+  private takeWeightedUpgrade(
+    pool: UpgradeDefinition[],
+  ) {
+    if (!pool.length) return null;
+
+    const weights = pool.map((item) =>
+      this.getUpgradeOfferWeight(item),
+    );
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    let roll = Math.random() * total;
+
+    for (let i = 0; i < pool.length; i += 1) {
+      roll -= weights[i];
+      if (roll <= 0) {
+        return pool.splice(i, 1)[0];
+      }
+    }
+
+    return pool.pop() ?? null;
+  }
+
   private pickUpgradeOptions() {
     const result: UpgradeOption[] = [];
 
@@ -4068,16 +4155,15 @@ export class GameEngine {
       result.push(this.buildEvolutionOption(evolution));
     }
 
-    const pool = upgradeCatalog
-      .filter(
-        (item) =>
-          this.getUpgradeLevel(item.key) < item.maxLevel,
-      )
-      .map((item) => this.buildUpgradeOption(item));
+    const pool = upgradeCatalog.filter(
+      (item) =>
+        this.getUpgradeLevel(item.key) < item.maxLevel,
+    );
 
     while (result.length < 3 && pool.length) {
-      const index = Math.floor(Math.random() * pool.length);
-      result.push(pool.splice(index, 1)[0]);
+      const picked = this.takeWeightedUpgrade(pool);
+      if (!picked) break;
+      result.push(this.buildUpgradeOption(picked));
     }
 
     return result;
