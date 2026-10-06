@@ -847,9 +847,15 @@ export class GameEngine {
     return '';
   }
 
-  private buildUpgradeOption(definition: UpgradeDefinition): UpgradeOption {
+  private buildUpgradeOption(
+    definition: UpgradeDefinition,
+    levelGain = 1,
+  ): UpgradeOption {
     const level = this.getUpgradeLevel(definition.key);
-    const nextLevel = Math.min(definition.maxLevel, level + 1);
+    const nextLevel = Math.min(
+      definition.maxLevel,
+      level + Math.max(1, levelGain),
+    );
     return {
       key: definition.key,
       title: definition.title,
@@ -3826,9 +3832,27 @@ export class GameEngine {
           : 'chestCommon',
     );
 
-    const options = this.pickChestOptions(chest.rarity);
+    const levelGain =
+      chest.rarity === 'MYTHIC'
+        ? 3
+        : chest.rarity === 'RARE'
+          ? 2
+          : 1;
+    this.pendingUpgradeLevelGain = levelGain;
+
+    const options = this.pickChestOptions(chest.rarity, levelGain);
     if (!options.length) {
-      this.player.hp = Math.min(this.player.maxHp, this.player.hp + 25);
+      this.pendingUpgradeLevelGain = 1;
+      const healRatio =
+        chest.rarity === 'MYTHIC'
+          ? 0.4
+          : chest.rarity === 'RARE'
+            ? 0.24
+            : 0.12;
+      this.player.hp = Math.min(
+        this.player.maxHp,
+        this.player.hp + this.player.maxHp * healRatio,
+      );
       return;
     }
 
@@ -3839,25 +3863,63 @@ export class GameEngine {
           ? '#c77dff'
           : '#5beaff';
 
+    const particleCount =
+      chest.rarity === 'MYTHIC'
+        ? 72
+        : chest.rarity === 'RARE'
+          ? 48
+          : 24;
+    const particleSpeed =
+      chest.rarity === 'MYTHIC'
+        ? 300
+        : chest.rarity === 'RARE'
+          ? 220
+          : 150;
+
     this.spawnParticles(
       chest.x,
       chest.y,
       color,
-      chest.rarity === 'MYTHIC' ? 52 : chest.rarity === 'RARE' ? 34 : 24,
-      chest.rarity === 'MYTHIC' ? 240 : 160,
+      particleCount,
+      particleSpeed,
     );
     this.spawnRing(
       chest.x,
       chest.y,
       12,
-      chest.rarity === 'MYTHIC' ? 190 : 130,
+      chest.rarity === 'MYTHIC'
+        ? 230
+        : chest.rarity === 'RARE'
+          ? 170
+          : 120,
       color,
-      0.58,
-      chest.rarity === 'MYTHIC' ? 9 : 6,
+      chest.rarity === 'MYTHIC' ? 0.82 : 0.58,
+      chest.rarity === 'MYTHIC'
+        ? 12
+        : chest.rarity === 'RARE'
+          ? 8
+          : 5,
     );
+
+    if (chest.rarity !== 'COMMON') {
+      this.spawnRing(
+        chest.x,
+        chest.y,
+        28,
+        chest.rarity === 'MYTHIC' ? 300 : 220,
+        '#ffffff',
+        chest.rarity === 'MYTHIC' ? 0.95 : 0.7,
+        chest.rarity === 'MYTHIC' ? 7 : 4,
+      );
+    }
+
     this.screenShake = Math.max(
       this.screenShake,
-      chest.rarity === 'MYTHIC' ? 10 : chest.rarity === 'RARE' ? 6 : 3,
+      chest.rarity === 'MYTHIC'
+        ? 14
+        : chest.rarity === 'RARE'
+          ? 8
+          : 3,
     );
 
     this.pausedForUpgrade = true;
@@ -3866,24 +3928,27 @@ export class GameEngine {
         ? {
             source: 'CHEST_MYTHIC',
             title: 'MYTHIC CACHE',
-            subtitle: 'RARE NEURAL REWARD',
+            subtitle: 'SYNAPTIC OVERLOAD · +3 LEVELS',
           }
         : chest.rarity === 'RARE'
           ? {
               source: 'CHEST_RARE',
               title: 'RARE CACHE',
-              subtitle: 'ENHANCED MUTATION REWARD',
+              subtitle: 'ELITE NEURAL REWARD · +2 LEVELS',
             }
           : {
               source: 'CHEST_COMMON',
               title: 'REWARD CACHE',
-              subtitle: 'SALVAGED MUTATION',
+              subtitle: 'SALVAGED MUTATION · +1 LEVEL',
             };
 
     this.callbacks.onLevelUp(options, context);
   }
 
-  private pickChestOptions(rarity: ChestRarity) {
+  private pickChestOptions(
+    rarity: ChestRarity,
+    levelGain: number,
+  ) {
     const result: UpgradeOption[] = [];
     const evolutions = evolutionCatalog.filter(
       (item) =>
@@ -3915,8 +3980,13 @@ export class GameEngine {
           : definitions;
     }
 
-    const pool = definitions.map((item) => this.buildUpgradeOption(item));
-    const targetCount = rarity === 'MYTHIC' ? 4 : 3;
+    const pool = definitions.map((item) =>
+      this.buildUpgradeOption(item, levelGain),
+    );
+    const targetCount =
+      rarity === 'COMMON'
+        ? 3
+        : 4;
 
     while (result.length < targetCount && pool.length) {
       const index = Math.floor(Math.random() * pool.length);
@@ -3965,6 +4035,7 @@ export class GameEngine {
       );
       const options = this.pickUpgradeOptions();
       if (options.length) {
+        this.pendingUpgradeLevelGain = 1;
         this.pausedForUpgrade = true;
         this.callbacks.onSound('levelUp');
         this.callbacks.onLevelUp(options, {
