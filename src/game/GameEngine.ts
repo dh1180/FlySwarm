@@ -1,6 +1,7 @@
 import { SpatialHash } from './SpatialHash';
 import { WholeBrainController } from './connectome/WholeBrainController';
 import { DopaminePolicy } from './learning/DopaminePolicy';
+import { MushroomBodyMemory } from './learning/MushroomBodyMemory';
 import type {
   Bullet,
   ChestRarity,
@@ -30,12 +31,14 @@ const WAVE_SECONDS = 30;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
-type BossKind =
+type CoreBossKind =
   | 'NEURAL_HUNTER'
   | 'STORM_BRAIN'
   | 'SWARM_QUEEN'
   | 'GLIAL_TITAN'
   | 'CONNECTOME_APEX';
+
+type BossKind = CoreBossKind | 'VIRTUAL_DROSOPHILA';
 
 type Boss = {
   kind: BossKind;
@@ -60,6 +63,8 @@ type Boss = {
   threatActive: boolean;
   threatPeak: number;
   dodgeRewardCooldown: number;
+  isFinal: boolean;
+  phase: number;
 };
 
 type EnemyShot = {
@@ -308,12 +313,19 @@ export class GameEngine {
   private readonly callbacks: Callbacks;
   private readonly brain = new WholeBrainController();
   private readonly dopamine = new DopaminePolicy();
+  private readonly mushroomBody = new MushroomBodyMemory();
 
   private raf = 0;
   private running = false;
   private pausedForUpgrade = false;
   private gameOver = false;
   private gameCleared = false;
+  private finalBossPending = false;
+  private finalBossCountdown = 0;
+  private finalBossDefeated = false;
+  private finalMemoryDriveBias = 0;
+  private finalMemoryVigilance = 0;
+  private lastFinalPhase = 0;
   private last = 0;
   private time = 0;
   private hudTimer = 0;
@@ -355,7 +367,7 @@ export class GameEngine {
   private lightningFx: LightningFx[] = [];
   private ringFx: RingFx[] = [];
   private boss: Boss | null = null;
-  private readonly defeatedBosses = new Set<BossKind>();
+  private readonly defeatedBosses = new Set<CoreBossKind>();
   private readonly upgradeLevels: Partial<Record<UpgradeKey, number>> = {};
   private readonly evolvedSkills = new Set<EvolutionKey>();
   private readonly fusedSourceSkills = new Set<UpgradeKey>();
@@ -443,6 +455,13 @@ export class GameEngine {
     this.pausedForUpgrade = false;
     this.gameOver = false;
     this.gameCleared = false;
+    this.finalBossPending = false;
+    this.finalBossCountdown = 0;
+    this.finalBossDefeated = false;
+    this.finalMemoryDriveBias = 0;
+    this.finalMemoryVigilance = 0;
+    this.lastFinalPhase = 0;
+    this.mushroomBody.resetEpisode();
     this.defeatedBosses.clear();
     for (const key of Object.keys(this.upgradeLevels) as UpgradeKey[]) {
       delete this.upgradeLevels[key];
