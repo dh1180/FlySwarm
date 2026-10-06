@@ -2554,8 +2554,6 @@ export class GameEngine {
     );
   }
 
-  }
-
   private updateShooting() {
     const lowHpAdrenaline =
       this.player.hp / this.player.maxHp < 0.35
