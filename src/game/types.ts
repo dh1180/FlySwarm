@@ -97,6 +97,12 @@ export type Player = {
   meteorTimer: number;
   ricochetLevel: number;
   executeLevel: number;
+  dendriticVolleyLevel: number;
+  dendriticVolleyTimer: number;
+  microglialBurstLevel: number;
+  nociceptiveReflexLevel: number;
+  nociceptiveReflexCooldown: number;
+  synapticEchoLevel: number;
 };
 
 export type UpgradeKey =
@@ -130,7 +136,11 @@ export type UpgradeKey =
   | 'synapticField'
   | 'meteor'
   | 'ricochet'
-  | 'execute';
+  | 'execute'
+  | 'dendriticVolley'
+  | 'microglialBurst'
+  | 'nociceptiveReflex'
+  | 'synapticEcho';
 
 export type EvolutionKey =
   | 'ganglionResonance'

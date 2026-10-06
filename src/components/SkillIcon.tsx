@@ -39,6 +39,10 @@ export const skillAccent: Record<SkillKey, string> = {
   meteor: '#ffd063',
   ricochet: '#91f2db',
   execute: '#ff4766',
+  dendriticVolley: '#b9a2ff',
+  microglialBurst: '#91f2db',
+  nociceptiveReflex: '#ff9c38',
+  synapticEcho: '#ff58bb',
   ganglionResonance: '#ffffff',
   vesicleSecretionHalo: '#9cff87',
   axonalSatellite: '#b9f5ff',
@@ -249,6 +253,34 @@ export default function SkillIcon({
         return <>
           <path d="M16 4v24M8 8l8 8 8-8M8 24l8-8 8 8" {...common}/>
           <circle cx="16" cy="16" r="4" {...common}/>
+        </>;
+      case 'dendriticVolley':
+        return <>
+          <circle cx="7" cy="16" r="2.5" {...common}/>
+          <path d="M9.5 16h5M14.5 16l10-8M14.5 16l11-4M14.5 16h12M14.5 16l11 4M14.5 16l10 8" {...common}/>
+          <circle cx="25" cy="8" r="1.4" {...common}/>
+          <circle cx="27" cy="16" r="1.4" {...common}/>
+          <circle cx="25" cy="24" r="1.4" {...common}/>
+        </>;
+      case 'microglialBurst':
+        return <>
+          <circle cx="16" cy="16" r="4" {...common}/>
+          <path d="M16 3v6M16 23v6M3 16h6M23 16h6M7 7l4 4M21 21l4 4M25 7l-4 4M11 21l-4 4" {...common}/>
+          <path d="M12 16c2-5 6-5 8 0-2 5-6 5-8 0z" {...common}/>
+        </>;
+      case 'nociceptiveReflex':
+        return <>
+          <circle cx="16" cy="16" r="5" {...common}/>
+          <circle cx="16" cy="16" r="11" {...common}/>
+          <path d="M16 2v4M16 26v4M2 16h4M26 16h4" {...common}/>
+          <path d="M13 13l3 3 5-7M10 23l4-3" {...common}/>
+        </>;
+      case 'synapticEcho':
+        return <>
+          <path d="M5 16h9M14 16l7-6M14 16l7 6" {...common}/>
+          <path d="M10 8c7-5 15-2 17 5M10 24c7 5 15 2 17-5" {...common}/>
+          <circle cx="24" cy="10" r="2" {...common}/>
+          <circle cx="24" cy="22" r="2" {...common}/>
         </>;
       case 'ganglionResonance':
         return <>
