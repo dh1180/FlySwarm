@@ -1361,3 +1361,63 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
     line-height: 1.6;
   }
 }
+
+
+/* Reward Cache rarity differentiation */
+.reward-chest_rare .upgrade-grid,
+.reward-chest_mythic .upgrade-grid {
+  width: min(1180px, 100%);
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.reward-chest_rare .upgrade-card {
+  border-color: rgba(199,125,255,.34);
+  background:
+    linear-gradient(145deg, rgba(199,125,255,.075), transparent 58%),
+    #0d131b;
+}
+.reward-chest_rare .upgrade-card:hover {
+  border-color: #c77dff;
+  box-shadow: 0 0 24px rgba(199,125,255,.09);
+}
+
+.cache-boost {
+  display: inline-flex;
+  width: fit-content;
+  margin: -5px 0 10px;
+  border: 1px solid rgba(91,234,255,.28);
+  background: rgba(91,234,255,.055);
+  color: var(--cyan);
+  padding: 4px 7px;
+  font-size: 8px;
+  font-weight: 1000;
+  letter-spacing: .12em;
+}
+
+.cache-boost.chest_rare {
+  border-color: rgba(199,125,255,.5);
+  background: rgba(199,125,255,.08);
+  color: #d9a7ff;
+  box-shadow: 0 0 16px rgba(199,125,255,.08);
+}
+
+.cache-boost.chest_mythic {
+  border-color: rgba(255,209,102,.55);
+  background: rgba(255,209,102,.09);
+  color: #ffd166;
+  box-shadow: 0 0 18px rgba(255,209,102,.1);
+}
+
+@media (max-width: 900px) {
+  .reward-chest_rare .upgrade-grid,
+  .reward-chest_mythic .upgrade-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .reward-chest_rare .upgrade-grid,
+  .reward-chest_mythic .upgrade-grid {
+    grid-template-columns: 1fr;
+  }
+}
