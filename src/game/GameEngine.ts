@@ -3820,6 +3820,47 @@ export class GameEngine {
     ctx.restore();
   }
 
+  private drawEnemyHpNumber(
+    x: number,
+    y: number,
+    hp: number,
+    maxHp: number,
+    always = false,
+  ) {
+    if (!always && hp >= maxHp - 0.01) return;
+
+    const ctx = this.ctx;
+    const ratio = clamp(hp / Math.max(1, maxHp), 0, 1);
+    const text = `${Math.max(0, Math.ceil(hp))} / ${Math.ceil(maxHp)}`;
+    const color =
+      ratio > 0.6
+        ? '#c7ff45'
+        : ratio > 0.3
+          ? '#ffcf57'
+          : '#ff5b63';
+
+    ctx.save();
+    ctx.font = '900 10px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const width = Math.ceil(ctx.measureText(text).width) + 10;
+    const height = 16;
+
+    ctx.fillStyle = 'rgba(4,8,12,.82)';
+    ctx.fillRect(x - width / 2, y - height / 2, width, height);
+
+    ctx.strokeStyle = 'rgba(255,255,255,.16)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x - width / 2, y - height / 2, width, height);
+
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 5;
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y + 0.5);
+    ctx.restore();
+  }
+
   private drawFlies() {
     const ctx = this.ctx;
 
@@ -3887,6 +3928,13 @@ export class GameEngine {
       ctx.arc(6.2 * scale, 2.2 * scale, 1.7 * scale, 0, TAU);
       ctx.fill();
       ctx.restore();
+
+      this.drawEnemyHpNumber(
+        fly.x,
+        fly.y - fly.radius - 15,
+        fly.hp,
+        fly.maxHp,
+      );
     }
   }
 
@@ -3983,6 +4031,14 @@ export class GameEngine {
       hpWidth * clamp(this.boss.hp / this.boss.maxHp, 0, 1),
       10,
     );
+    this.drawEnemyHpNumber(
+      this.boss.x,
+      this.boss.y - this.boss.radius - 21,
+      this.boss.hp,
+      this.boss.maxHp,
+      true,
+    );
+
     ctx.fillStyle = '#ffffff';
     ctx.font = '900 11px Inter, sans-serif';
     ctx.textAlign = 'center';
