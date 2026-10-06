@@ -1245,3 +1245,22 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
     padding: 0 11px;
   }
 }
+
+
+/* Build 010: fused source lock state */
+.skill-chip.fusion-locked {
+  border-color: rgba(199,255,69,.34);
+  background:
+    linear-gradient(135deg, rgba(199,255,69,.055), rgba(91,234,255,.025)),
+    #0b1118;
+}
+.skill-chip.fusion-locked .skill-chip-main span {
+  color: #e9ffd0;
+}
+.skill-chip.fusion-locked > b {
+  color: var(--acid);
+  max-width: 170px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
