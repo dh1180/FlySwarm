@@ -63,7 +63,7 @@
 | Pretrained motor policy | **120,000 steps** |
 | Core Boss | **5종** |
 | Final Boss | **1종 · Virtual Drosophila** |
-| 기본 Mutation | **30종** |
+| 기본 Mutation | **34종** |
 | Synaptic Fusion | **15종** |
 | 일반 적 Archetype | **5종** |
 | Reward Cache | **COMMON / RARE / MYTHIC** |
@@ -76,7 +76,7 @@
 - 가장 가까운 적 자동 공격
 - 경험치 Orb와 레벨업
 - Magnet 반경 진입 시 XP Orb 즉시 획득
-- 30종 Mutation과 최대 레벨 성장
+- 34종 Mutation과 최대 레벨 성장
 - 공격 스킬 6종의 모든 2개 조합을 구현한 **15종 Synaptic Fusion**
 - Reward Cache 기반 추가 성장
 - 웨이브 증가와 군집 Genome 진화
@@ -263,6 +263,20 @@ npm run train:boss
 
 등장 단계가 높아질수록 HP, 피해량, 이동 scale, 특수기 주기가 누적 강화됩니다.
 
+### Alternating Boss Patterns
+
+각 Core Boss는 동일한 특수기를 반복하지 않고 **2개의 전용 패턴을 교대로 사용**합니다.
+
+| Boss | Pattern A | Pattern B |
+| --- | --- | --- |
+| NEURAL HUNTER | 집중 3연발 | 압축 7연 Fan Volley |
+| STORM BRAIN | 방사탄 + 단일 Strike | Spiral 탄막 + 삼중 Strike |
+| SWARM QUEEN | Minion Brood + Ring | Petal Barrage + 5연 조준탄 |
+| GLIAL TITAN | 이중속도 방사탄 + 3점 방전 | Wide Fan + 5점 Glial Wall |
+| CONNECTOME APEX | 소환 복합패턴 | Spiral Lattice + 7연 조준탄 + 5점 Strike |
+
+VIRTUAL DROSOPHILA는 Phase 1~3 내부에서도 **pursuit / barrage / hybrid** 3모드를 순환합니다.
+
 ### Giant Fiber Evasion Reflex
 
 보스는 단순히 가까운 탄을 피하지 않습니다.
@@ -360,7 +374,7 @@ MBON+가 우세하면 접근과 조준 공격이 강해지고, MBON−가 우세
 
 ## 🧬 Mutation & Synaptic Fusion
 
-기본 Mutation 30종 중 공격 본체는 다음 6종입니다.
+기본 Mutation은 **34종**이며, 이 중 Fusion의 원본 공격은 다음 6종입니다.
 
 - **Synaptic Vesicle Orbit**
 - **Action Potential Burst**
@@ -398,6 +412,42 @@ MBON+가 우세하면 접근과 조준 공격이 강해지고, MBON−가 우세
 엔진은 6개 공격의 모든 2개 조합인 **6C2 = 15개**가 정확히 한 번씩 존재하는지 검사합니다.
 
 </details>
+
+### Auxiliary Neural Skills
+
+Fusion source를 늘리면 조합 수가 급격히 증가하므로, 신규 4종은 독립적인 보조 공격 / 반격 계열로 추가합니다.
+
+| Skill | Rarity | 역할 |
+| --- | --- | --- |
+| **Dendritic Volley** | NEURAL | 가장 가까운 적 방향으로 주기적 부채꼴 보조탄 |
+| **Microglial Burst** | RARE | 일반 적 처치 시 주변 정리 폭발 |
+| **Nociceptive Reflex** | RARE | 실제 피격 시 쿨다운 기반 광역 반격 |
+| **Synaptic Echo** | NEURAL | 기본 자동 공격이 확률적으로 Echo Volley를 추가 발사 |
+
+신규 스킬은 기존 6개 공격의 15종 Synaptic Fusion source에는 포함하지 않습니다.
+
+### Weighted Level-up Offers
+
+일반 Level Up의 3개 선택지는 완전 균등 랜덤이 아닙니다.
+
+이미 투자한 스킬이 조금 더 자주 등장하도록 현재 레벨에 따라 가중치를 적용합니다.
+
+| Current Level | Level Weight |
+| ---: | ---: |
+| 0 | ×1.00 |
+| 1 | ×1.25 |
+| 2 | ×1.50 |
+| 3 | ×1.80 |
+| 4 | ×2.20 |
+| 5 | ×2.45 |
+
+여기에 rarity 기본 가중치를 함께 적용합니다.
+
+- COMMON: ×1.00
+- RARE: ×0.82
+- NEURAL: ×0.70
+
+따라서 높은 레벨의 스킬은 빌드 완성을 위해 더 잘 등장하지만, 새 스킬과 낮은 레벨 스킬도 계속 선택지에 남습니다.
 
 ### Synaptic Vesicle Orbit
 
