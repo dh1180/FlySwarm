@@ -554,6 +554,10 @@ WAVE 9  · GLIAL TITAN
         ↓
 WAVE 11 · CONNECTOME APEX
         ↓
+ARENA PURGE
+        ↓
+VIRTUAL DROSOPHILA
+        ↓
 GAME CLEAR
 ```
 
