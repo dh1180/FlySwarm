@@ -435,6 +435,13 @@ export default function FlySwarmGame() {
                       ? ' · FUSION'
                       : ` · Lv ${upgrade.level} → ${upgrade.nextLevel}/${upgrade.maxLevel}`}
                   </em>
+                  {!upgrade.isEvolution &&
+                    rewardContext.source.startsWith('CHEST_') && (
+                      <b className={`cache-boost ${rewardContext.source.toLowerCase()}`}>
+                        +{upgrade.nextLevel - upgrade.level} LEVEL
+                        {upgrade.nextLevel - upgrade.level > 1 ? 'S' : ''}
+                      </b>
+                    )}
                   <span>{upgrade.title}</span>
                   <small>{upgrade.description}</small>
                   <strong className="upgrade-detail">{upgrade.detail}</strong>
