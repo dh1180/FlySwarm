@@ -1026,8 +1026,25 @@ export class GameEngine {
     }
 
     const brainSnapshot = this.brain.getSnapshot();
+
+    if (this.finalBossPending) {
+      this.finalBossCountdown = Math.max(
+        0,
+        this.finalBossCountdown - dt,
+      );
+      if (
+        this.finalBossCountdown <= 0 &&
+        brainSnapshot.status === 'ready'
+      ) {
+        this.spawnFinalBoss();
+      }
+    }
+
     if (
       !this.boss &&
+      !this.finalBossPending &&
+      !this.finalBossDefeated &&
+      this.defeatedBosses.size < 5 &&
       this.wave >= this.nextBossWave &&
       brainSnapshot.status === 'ready'
     ) {
@@ -1125,6 +1142,15 @@ export class GameEngine {
   }
 
   private spawnFlies() {
+    if (
+      this.finalBossPending ||
+      this.finalBossDefeated ||
+      this.defeatedBosses.size >= 5 ||
+      this.boss?.isFinal
+    ) {
+      return;
+    }
+
     const bossTax = this.boss ? 0.8 : 1;
     const cap = Math.floor(Math.min(390, 46 + this.wave * 23) * bossTax);
     const interval = Math.max(0.072, 0.43 - this.wave * 0.024);
@@ -1403,7 +1429,9 @@ export class GameEngine {
           ? '#c7ff45'
           : kind === 'GLIAL_TITAN'
             ? '#55ffc7'
-            : '#ff5b63';
+            : kind === 'CONNECTOME_APEX'
+              ? '#ff5b63'
+              : '#ff4fd8';
   }
 
   private getBossPulseRadius(boss: Boss) {
@@ -1414,14 +1442,140 @@ export class GameEngine {
           ? 292
           : boss.kind === 'CONNECTOME_APEX'
             ? 275
-            : boss.kind === 'SWARM_QUEEN'
-              ? 225
-              : 210;
+            : boss.kind === 'VIRTUAL_DROSOPHILA'
+              ? 345
+              : boss.kind === 'SWARM_QUEEN'
+                ? 225
+                : 210;
     return base + (boss.stage - 1) * 8;
   }
 
+  private beginFinalEncounter() {
+    this.finalBossPending = true;
+    this.finalBossCountdown = 3.25;
+    this.selectedId = null;
+
+    // Final arena must be a true 1:1 encounter.
+    this.flies = [];
+    this.bullets = [];
+    this.enemyShots = [];
+    this.bossStrikes = [];
+    this.chests = [];
+    this.orbs = [];
+    this.damageFields = [];
+
+    this.spawnTimer = 0;
+    this.bossBrainTimer = 0;
+    this.bossPolicyTurn = 0;
+    this.bossPolicyDrive = 0;
+    this.bossRewardBuffer = 0;
+    this.bossPenaltyBuffer = 0;
+    this.finalMemoryDriveBias = 0;
+    this.finalMemoryVigilance = 0;
+    this.lastFinalPhase = 0;
+    this.mushroomBody.resetEpisode();
+    this.brain.reset();
+
+    this.screenShake = Math.max(this.screenShake, 20);
+    this.spawnRing(
+      this.player.x,
+      this.player.y,
+      40,
+      520,
+      '#ff4fd8',
+      1.1,
+      10,
+    );
+    this.emitHud();
+  }
+
+  private spawnFinalBoss() {
+    if (
+      this.finalBossDefeated ||
+      this.boss ||
+      this.brain.getSnapshot().status !== 'ready'
+    ) {
+      return;
+    }
+
+    const camera = this.getCamera();
+    const maxHp = Math.max(
+      50000,
+      (5200 + this.wave * 620) * 4.25,
+    );
+
+    this.boss = {
+      kind: 'VIRTUAL_DROSOPHILA',
+      name: 'VIRTUAL DROSOPHILA',
+      x: clamp(camera.x + VIEW_WIDTH / 2, 100, WORLD_WIDTH - 100),
+      y: clamp(camera.y + 108, 100, WORLD_HEIGHT - 100),
+      vx: 0,
+      vy: 0,
+      radius: 58,
+      hp: maxHp,
+      maxHp,
+      heading: Math.PI / 2,
+      pulseCooldown: 0.78,
+      specialCooldown: 1.45,
+      stage: 6,
+      damageScale: 2.15,
+      speedScale: 1.46,
+      cooldownScale: 0.48,
+      angularVelocity: 0,
+      turnHold: 0,
+      lastTurnSign: 0,
+      threatActive: false,
+      threatPeak: 0,
+      dodgeRewardCooldown: 0,
+      isFinal: true,
+      phase: 1,
+    };
+
+    this.finalBossPending = false;
+    this.finalBossCountdown = 0;
+    this.bossBrainTimer = 0;
+    this.bossPolicyTurn = 0;
+    this.bossPolicyDrive = 0;
+    this.bossRewardBuffer = 0;
+    this.bossPenaltyBuffer = 0;
+    this.finalMemoryDriveBias = 0;
+    this.finalMemoryVigilance = 0;
+    this.lastFinalPhase = 1;
+    this.mushroomBody.resetEpisode();
+    this.brain.reset();
+
+    this.screenShake = Math.max(this.screenShake, 24);
+    this.spawnParticles(
+      this.boss.x,
+      this.boss.y,
+      '#ff4fd8',
+      96,
+      310,
+    );
+    this.spawnRing(
+      this.boss.x,
+      this.boss.y,
+      28,
+      390,
+      '#ffffff',
+      0.95,
+      14,
+    );
+    this.spawnRing(
+      this.boss.x,
+      this.boss.y,
+      50,
+      290,
+      '#ff4fd8',
+      0.78,
+      9,
+    );
+    this.callbacks.onSound('finalBossSpawn');
+    this.emitHud();
+  }
+
   private spawnBoss() {
-    const kinds: BossKind[] = [
+    const kinds: CoreBossKind[] = [
       'NEURAL_HUNTER',
       'STORM_BRAIN',
       'SWARM_QUEEN',
@@ -1473,6 +1627,8 @@ export class GameEngine {
       threatActive: false,
       threatPeak: 0,
       dodgeRewardCooldown: 0,
+      isFinal: false,
+      phase: 1,
     };
 
     this.bossBrainTimer = 0;
