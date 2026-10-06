@@ -1017,10 +1017,16 @@ export class GameEngine {
       this.player.lightningCooldown - dt,
     );
 
-    const nextWave = Math.floor(this.time / WAVE_SECONDS) + 1;
-    if (nextWave > this.wave) {
-      this.wave = nextWave;
-      this.evolveSwarm();
+    if (
+      !this.finalBossPending &&
+      !this.boss?.isFinal &&
+      !this.finalBossDefeated
+    ) {
+      const nextWave = Math.floor(this.time / WAVE_SECONDS) + 1;
+      if (nextWave > this.wave) {
+        this.wave = nextWave;
+        this.evolveSwarm();
+      }
     }
 
     const brainSnapshot = this.brain.getSnapshot();
