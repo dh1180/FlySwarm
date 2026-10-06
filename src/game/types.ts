@@ -172,6 +172,8 @@ export type OwnedSkill = {
   maxLevel: number;
   rarity: SkillRarity;
   evolved?: boolean;
+  fusionLocked?: boolean;
+  fusedInto?: string;
 };
 
 export type SelectedFly = {
