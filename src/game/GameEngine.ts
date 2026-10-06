@@ -4512,6 +4512,40 @@ export class GameEngine {
       ctx.stroke();
     }
 
+    if (this.boss.kind === 'VIRTUAL_DROSOPHILA') {
+      const memory = this.mushroomBody.getSnapshot();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.8;
+      for (let i = 0; i < 10; i += 1) {
+        const angle = (i / 10) * TAU + this.time * 0.22;
+        const inner = 21 * scale;
+        const outer =
+          (44 + memory.memoryStrength * 26) * scale;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#ff4fd8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, (18 + this.boss.phase * 3) * scale, 0, TAU);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#8cf5ff';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(
+        0,
+        0,
+        (28 + memory.novelty * 12) * scale,
+        0,
+        TAU,
+      );
+      ctx.stroke();
+    }
+
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#0a0e12';
     ctx.beginPath();
@@ -4542,7 +4576,9 @@ export class GameEngine {
     ctx.font = '900 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      `STAGE ${this.boss.stage}/5 · ${this.boss.name} · FULL CONNECTOME`,
+      this.boss.isFinal
+        ? `FINAL · PHASE ${this.boss.phase}/3 · ${this.boss.name} · CONNECTOME + MB`
+        : `STAGE ${this.boss.stage}/5 · ${this.boss.name} · FULL CONNECTOME`,
       this.boss.x,
       this.boss.y - this.boss.radius - 48,
     );
