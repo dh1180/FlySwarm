@@ -449,17 +449,43 @@ Fusion source를 늘리면 조합 수가 급격히 증가하므로, 신규 4종�
 
 따라서 높은 레벨의 스킬은 빌드 완성을 위해 더 잘 등장하지만, 새 스킬과 낮은 레벨 스킬도 계속 선택지에 남습니다.
 
-### Synaptic Vesicle Orbit
+### Core AoE Skill Rebalance
 
-Orbit은 후반 보스전에서도 주력 공격으로 사용할 수 있도록 강화되어 있습니다.
+초반에는 보이지만 후반 체감이 약했던 세 핵심 광역 공격을 역할 중심으로 재설계했습니다.
+
+#### Synaptic Vesicle Orbit
 
 - Lv1에서 Orbital 2개
-- 회전속도 3.05 rad/s
-- 5개 이상이면 70px / 96px 이중 궤도
-- 넓어진 접촉 판정
-- Boss DPS 강화
-- Fusion 시 추가 damage multiplier
-- Halo / local pulse / cascade 계열 교차 효과
+- Lv1 기준 Orbital Damage **22**
+- 이후 레벨마다 Orbital Damage **+5**
+- 회전속도 **3.75 rad/s**
+- 5개 이상이면 **76px / 104px** 이중 궤도
+- 접촉 판정 반경 **25px**
+- 일반몹/보스 지속 DPS 계수 상향
+- 레벨에 따라 약 **0.73s → 0.50s** 간격 Micro Burst
+- Fusion 시 Burst / Halo / Lattice 계열 추가 강화
+
+#### Action Potential Burst
+
+- Lv1 Cooldown **5.6s**
+- Lv1 Base Damage **110**
+- 레벨업마다 Cooldown **×0.80**
+- 레벨업마다 Base Damage **×1.32**
+- 실제 피해에 **Player Damage scaling** 추가
+- 기본 반경 **270px**부터 레벨에 따라 증가
+- 일반형 Nova는 주변 일반몹을 바깥으로 밀어내는 knockback 추가
+- Ganglion Resonance Fusion에서는 기존 pull 성격 유지
+
+#### Neurotoxin Gradient
+
+- Lv1 Base DPS **26**
+- Lv1 Radius **135px**
+- 레벨업마다 DPS **×1.32**
+- 레벨업마다 Radius **+18px**
+- Player Damage scaling 추가
+- Boss 대상 지속 피해 계수 상향
+- 레벨 기반 주기적 **Toxic Pulse** 추가
+- Aura 자체도 내부 glow / pulse ring이 보이도록 VFX 강화
 
 ---
 
