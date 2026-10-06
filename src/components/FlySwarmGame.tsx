@@ -495,18 +495,20 @@ export default function FlySwarmGame() {
             hud.skills.map((skill) => (
               <div
                 key={skill.key}
-                className={`skill-chip rarity-${skill.rarity.toLowerCase()} ${skill.evolved ? 'evolved' : ''}`}
+                className={`skill-chip rarity-${skill.rarity.toLowerCase()} ${skill.evolved ? 'evolved' : ''} ${skill.fusionLocked ? 'fusion-locked' : ''}`}
               >
                 <div className="skill-chip-main">
                   <SkillIcon skill={skill.key} size={25} />
                   <span>{skill.title}</span>
                 </div>
-                <b>
+                <b title={skill.fusedInto}>
                   {skill.evolved
                     ? 'EVOLVED'
-                    : skill.level >= skill.maxLevel
-                      ? `MAX ${skill.level}/${skill.maxLevel}`
-                      : `Lv ${skill.level}/${skill.maxLevel}`}
+                    : skill.fusionLocked
+                      ? `FUSED · ${skill.fusedInto ?? 'LOCKED'}`
+                      : skill.level >= skill.maxLevel
+                        ? `MAX ${skill.level}/${skill.maxLevel}`
+                        : `Lv ${skill.level}/${skill.maxLevel}`}
                 </b>
               </div>
             ))
