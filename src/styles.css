@@ -1264,3 +1264,100 @@ footer a { justify-self: end; text-decoration: none; color: var(--acid); }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+
+/* Build 011: Virtual Drosophila final encounter */
+.final-badge {
+  color: #ff77dd !important;
+  border-color: rgba(255,79,216,.38) !important;
+  background: rgba(255,79,216,.06);
+  text-shadow: 0 0 14px rgba(255,79,216,.35);
+}
+
+.final-boss-strip {
+  border-color: rgba(255,79,216,.42);
+  background:
+    radial-gradient(circle at 50% 0%, rgba(255,79,216,.12), transparent 46%),
+    linear-gradient(90deg, rgba(140,245,255,.035), rgba(255,79,216,.06)),
+    #090d13;
+  box-shadow:
+    inset 0 0 26px rgba(255,79,216,.045),
+    0 0 28px rgba(255,79,216,.05);
+}
+
+.final-boss-strip > div:first-child span {
+  color: #ff77dd;
+}
+
+.final-boss-strip > div:first-child strong {
+  color: #ffffff;
+  text-shadow: 0 0 18px rgba(255,79,216,.3);
+}
+
+.final-boss-strip .boss-hp i {
+  background: linear-gradient(90deg, #8cf5ff, #ff4fd8, #ffffff);
+  box-shadow: 0 0 18px rgba(255,79,216,.45);
+}
+
+.final-boss-strip .neural-readout b:nth-last-child(-n+4) {
+  border-color: rgba(255,79,216,.24);
+  color: #ffd9f6;
+}
+
+.final-transition {
+  position: absolute;
+  inset: 0;
+  z-index: 18;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 8px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 50% 48%, rgba(255,79,216,.14), transparent 30%),
+    radial-gradient(circle at 50% 48%, rgba(140,245,255,.07), transparent 46%),
+    rgba(2,5,8,.38);
+  backdrop-filter: blur(1.5px);
+  text-align: center;
+}
+
+.final-transition span {
+  color: var(--acid);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .18em;
+}
+
+.final-transition strong {
+  color: #ffffff;
+  font-size: clamp(28px, 5vw, 58px);
+  font-weight: 1000;
+  letter-spacing: -.035em;
+  text-shadow:
+    0 0 18px rgba(255,79,216,.42),
+    0 0 42px rgba(140,245,255,.12);
+}
+
+.final-transition b {
+  color: #ff77dd;
+  font-size: 12px;
+  letter-spacing: .16em;
+}
+
+.final-transition small {
+  margin-top: 9px;
+  color: rgba(255,255,255,.6);
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .09em;
+}
+
+@media (max-width: 640px) {
+  .final-transition strong {
+    font-size: 31px;
+  }
+  .final-transition small {
+    max-width: 300px;
+    line-height: 1.6;
+  }
+}

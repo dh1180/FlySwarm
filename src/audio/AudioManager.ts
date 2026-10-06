@@ -167,6 +167,15 @@ export class AudioManager {
       case 'gameOver':
         this.sequence([220, 174.61, 130.81, 87.31], 0.18, 0.055, 'sawtooth');
         break;
+      case 'finalBossSpawn':
+        this.tone(43.65, 1.4, 'sawtooth', 0.11, 130.81);
+        this.chord([65.41, 98, 146.83, 220], 1.25, 0.07, 'sine');
+        this.noise(0.62, 0.055, 520);
+        break;
+      case 'finalBossPhase':
+        this.sequence([110, 164.81, 246.94, 369.99], 0.07, 0.075, 'square');
+        this.tone(740, 0.38, 'triangle', 0.045, 1480);
+        break;
       case 'gameClear':
         this.chord([261.63, 329.63, 392, 523.25], 1.15, 0.06, 'sine');
         this.sequence([523.25, 659.25, 783.99, 1046.5], 0.13, 0.045, 'triangle');

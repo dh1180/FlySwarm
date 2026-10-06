@@ -1,6 +1,7 @@
 import { SpatialHash } from './SpatialHash';
 import { WholeBrainController } from './connectome/WholeBrainController';
 import { DopaminePolicy } from './learning/DopaminePolicy';
+import { MushroomBodyMemory } from './learning/MushroomBodyMemory';
 import type {
   Bullet,
   ChestRarity,
@@ -30,12 +31,14 @@ const WAVE_SECONDS = 30;
 const TAU = Math.PI * 2;
 const BOSS_HIT_ID = -1;
 
-type BossKind =
+type CoreBossKind =
   | 'NEURAL_HUNTER'
   | 'STORM_BRAIN'
   | 'SWARM_QUEEN'
   | 'GLIAL_TITAN'
   | 'CONNECTOME_APEX';
+
+type BossKind = CoreBossKind | 'VIRTUAL_DROSOPHILA';
 
 type Boss = {
   kind: BossKind;
@@ -60,6 +63,8 @@ type Boss = {
   threatActive: boolean;
   threatPeak: number;
   dodgeRewardCooldown: number;
+  isFinal: boolean;
+  phase: number;
 };
 
 type EnemyShot = {
@@ -308,12 +313,18 @@ export class GameEngine {
   private readonly callbacks: Callbacks;
   private readonly brain = new WholeBrainController();
   private readonly dopamine = new DopaminePolicy();
+  private readonly mushroomBody = new MushroomBodyMemory();
 
   private raf = 0;
   private running = false;
   private pausedForUpgrade = false;
   private gameOver = false;
   private gameCleared = false;
+  private finalBossPending = false;
+  private finalBossCountdown = 0;
+  private finalBossDefeated = false;
+  private finalMemoryDriveBias = 0;
+  private finalMemoryVigilance = 0;
   private last = 0;
   private time = 0;
   private hudTimer = 0;
@@ -355,7 +366,7 @@ export class GameEngine {
   private lightningFx: LightningFx[] = [];
   private ringFx: RingFx[] = [];
   private boss: Boss | null = null;
-  private readonly defeatedBosses = new Set<BossKind>();
+  private readonly defeatedBosses = new Set<CoreBossKind>();
   private readonly upgradeLevels: Partial<Record<UpgradeKey, number>> = {};
   private readonly evolvedSkills = new Set<EvolutionKey>();
   private readonly fusedSourceSkills = new Set<UpgradeKey>();
@@ -443,6 +454,12 @@ export class GameEngine {
     this.pausedForUpgrade = false;
     this.gameOver = false;
     this.gameCleared = false;
+    this.finalBossPending = false;
+    this.finalBossCountdown = 0;
+    this.finalBossDefeated = false;
+    this.finalMemoryDriveBias = 0;
+    this.finalMemoryVigilance = 0;
+    this.mushroomBody.resetEpisode();
     this.defeatedBosses.clear();
     for (const key of Object.keys(this.upgradeLevels) as UpgradeKey[]) {
       delete this.upgradeLevels[key];
@@ -1000,15 +1017,38 @@ export class GameEngine {
       this.player.lightningCooldown - dt,
     );
 
-    const nextWave = Math.floor(this.time / WAVE_SECONDS) + 1;
-    if (nextWave > this.wave) {
-      this.wave = nextWave;
-      this.evolveSwarm();
+    if (
+      !this.finalBossPending &&
+      !this.boss?.isFinal &&
+      !this.finalBossDefeated
+    ) {
+      const nextWave = Math.floor(this.time / WAVE_SECONDS) + 1;
+      if (nextWave > this.wave) {
+        this.wave = nextWave;
+        this.evolveSwarm();
+      }
     }
 
     const brainSnapshot = this.brain.getSnapshot();
+
+    if (this.finalBossPending) {
+      this.finalBossCountdown = Math.max(
+        0,
+        this.finalBossCountdown - dt,
+      );
+      if (
+        this.finalBossCountdown <= 0 &&
+        brainSnapshot.status === 'ready'
+      ) {
+        this.spawnFinalBoss();
+      }
+    }
+
     if (
       !this.boss &&
+      !this.finalBossPending &&
+      !this.finalBossDefeated &&
+      this.defeatedBosses.size < 5 &&
       this.wave >= this.nextBossWave &&
       brainSnapshot.status === 'ready'
     ) {
@@ -1023,10 +1063,17 @@ export class GameEngine {
     this.updateBossStrikes(dt);
     this.updateEnemyShots(dt);
     this.spatial.rebuild(this.flies);
-    this.updateShooting();
-    this.updateBullets(dt);
-    this.updateAbilities(dt);
-    this.updateDamageFields(dt);
+
+    if (!this.finalBossPending) {
+      this.updateShooting();
+      this.updateBullets(dt);
+      this.updateAbilities(dt);
+      this.updateDamageFields(dt);
+    } else {
+      this.bullets = [];
+      this.damageFields = [];
+    }
+
     this.updateChests(dt);
     this.updateOrbs(dt);
     this.updateVfx(dt);
@@ -1106,6 +1153,15 @@ export class GameEngine {
   }
 
   private spawnFlies() {
+    if (
+      this.finalBossPending ||
+      this.finalBossDefeated ||
+      this.defeatedBosses.size >= 5 ||
+      this.boss?.isFinal
+    ) {
+      return;
+    }
+
     const bossTax = this.boss ? 0.8 : 1;
     const cap = Math.floor(Math.min(390, 46 + this.wave * 23) * bossTax);
     const interval = Math.max(0.072, 0.43 - this.wave * 0.024);
@@ -1384,7 +1440,9 @@ export class GameEngine {
           ? '#c7ff45'
           : kind === 'GLIAL_TITAN'
             ? '#55ffc7'
-            : '#ff5b63';
+            : kind === 'CONNECTOME_APEX'
+              ? '#ff5b63'
+              : '#ff4fd8';
   }
 
   private getBossPulseRadius(boss: Boss) {
@@ -1395,14 +1453,138 @@ export class GameEngine {
           ? 292
           : boss.kind === 'CONNECTOME_APEX'
             ? 275
-            : boss.kind === 'SWARM_QUEEN'
-              ? 225
-              : 210;
+            : boss.kind === 'VIRTUAL_DROSOPHILA'
+              ? 345
+              : boss.kind === 'SWARM_QUEEN'
+                ? 225
+                : 210;
     return base + (boss.stage - 1) * 8;
   }
 
+  private beginFinalEncounter() {
+    this.finalBossPending = true;
+    this.finalBossCountdown = 3.25;
+    this.selectedId = null;
+
+    // Final arena must be a true 1:1 encounter.
+    this.flies = [];
+    this.bullets = [];
+    this.enemyShots = [];
+    this.bossStrikes = [];
+    this.chests = [];
+    this.orbs = [];
+    this.damageFields = [];
+
+    this.spawnTimer = 0;
+    this.bossBrainTimer = 0;
+    this.bossPolicyTurn = 0;
+    this.bossPolicyDrive = 0;
+    this.bossRewardBuffer = 0;
+    this.bossPenaltyBuffer = 0;
+    this.finalMemoryDriveBias = 0;
+    this.finalMemoryVigilance = 0;
+    this.mushroomBody.resetEpisode();
+    this.brain.reset();
+
+    this.screenShake = Math.max(this.screenShake, 20);
+    this.spawnRing(
+      this.player.x,
+      this.player.y,
+      40,
+      520,
+      '#ff4fd8',
+      1.1,
+      10,
+    );
+    this.emitHud();
+  }
+
+  private spawnFinalBoss() {
+    if (
+      this.finalBossDefeated ||
+      this.boss ||
+      this.brain.getSnapshot().status !== 'ready'
+    ) {
+      return;
+    }
+
+    const camera = this.getCamera();
+    const maxHp = Math.max(
+      50000,
+      (5200 + this.wave * 620) * 4.25,
+    );
+
+    this.boss = {
+      kind: 'VIRTUAL_DROSOPHILA',
+      name: 'VIRTUAL DROSOPHILA',
+      x: clamp(camera.x + VIEW_WIDTH / 2, 100, WORLD_WIDTH - 100),
+      y: clamp(camera.y + 108, 100, WORLD_HEIGHT - 100),
+      vx: 0,
+      vy: 0,
+      radius: 58,
+      hp: maxHp,
+      maxHp,
+      heading: Math.PI / 2,
+      pulseCooldown: 0.78,
+      specialCooldown: 1.45,
+      stage: 6,
+      damageScale: 2.15,
+      speedScale: 1.46,
+      cooldownScale: 0.48,
+      angularVelocity: 0,
+      turnHold: 0,
+      lastTurnSign: 0,
+      threatActive: false,
+      threatPeak: 0,
+      dodgeRewardCooldown: 0,
+      isFinal: true,
+      phase: 1,
+    };
+
+    this.finalBossPending = false;
+    this.finalBossCountdown = 0;
+    this.bossBrainTimer = 0;
+    this.bossPolicyTurn = 0;
+    this.bossPolicyDrive = 0;
+    this.bossRewardBuffer = 0;
+    this.bossPenaltyBuffer = 0;
+    this.finalMemoryDriveBias = 0;
+    this.finalMemoryVigilance = 0;
+    this.mushroomBody.resetEpisode();
+    this.brain.reset();
+
+    this.screenShake = Math.max(this.screenShake, 24);
+    this.spawnParticles(
+      this.boss.x,
+      this.boss.y,
+      '#ff4fd8',
+      96,
+      310,
+    );
+    this.spawnRing(
+      this.boss.x,
+      this.boss.y,
+      28,
+      390,
+      '#ffffff',
+      0.95,
+      14,
+    );
+    this.spawnRing(
+      this.boss.x,
+      this.boss.y,
+      50,
+      290,
+      '#ff4fd8',
+      0.78,
+      9,
+    );
+    this.callbacks.onSound('finalBossSpawn');
+    this.emitHud();
+  }
+
   private spawnBoss() {
-    const kinds: BossKind[] = [
+    const kinds: CoreBossKind[] = [
       'NEURAL_HUNTER',
       'STORM_BRAIN',
       'SWARM_QUEEN',
@@ -1454,6 +1636,8 @@ export class GameEngine {
       threatActive: false,
       threatPeak: 0,
       dodgeRewardCooldown: 0,
+      isFinal: false,
+      phase: 1,
     };
 
     this.bossBrainTimer = 0;
@@ -1571,6 +1755,32 @@ export class GameEngine {
     );
 
     const projectileThreat = this.getBossProjectileThreat(boss);
+
+    if (boss.isFinal) {
+      const hpRatio = boss.hp / boss.maxHp;
+      const nextPhase = hpRatio > 0.7 ? 1 : hpRatio > 0.35 ? 2 : 3;
+      if (nextPhase !== boss.phase) {
+        boss.phase = nextPhase;
+        this.callbacks.onSound('finalBossPhase');
+        this.screenShake = Math.max(this.screenShake, 18 + nextPhase * 3);
+        this.spawnRing(
+          boss.x,
+          boss.y,
+          30,
+          260 + nextPhase * 55,
+          '#ff4fd8',
+          0.75,
+          8 + nextPhase * 2,
+        );
+        this.spawnParticles(
+          boss.x,
+          boss.y,
+          '#ffffff',
+          35 + nextPhase * 16,
+          210 + nextPhase * 35,
+        );
+      }
+    }
     if (projectileThreat.score > 0.2) {
       if (!boss.threatActive) {
         this.spawnParticles(
@@ -1616,17 +1826,48 @@ export class GameEngine {
       const reward = this.bossRewardBuffer - this.bossPenaltyBuffer;
       if (Math.abs(reward) > 0.0001) {
         this.dopamine.reward(reward);
+        if (boss.isFinal) {
+          this.mushroomBody.reward(reward);
+        }
       }
       this.bossRewardBuffer = 0;
       this.bossPenaltyBuffer = 0;
 
-      const policyAction = this.dopamine.act(brain.output);
-      this.bossPolicyTurn = policyAction.turn;
-      this.bossPolicyDrive = policyAction.drive;
-
       const dx = this.player.x - boss.x;
       const dy = this.player.y - boss.y;
       const distance = Math.hypot(dx, dy) || 1;
+      const proximity = clamp(1 - distance / 1050, 0, 1);
+
+      if (boss.isFinal) {
+        const memory = this.mushroomBody.evaluate(
+          brain.output,
+          projectileThreat.score,
+          proximity,
+          1 - boss.hp / boss.maxHp,
+        );
+        this.finalMemoryDriveBias = memory.driveBias;
+        this.finalMemoryVigilance = memory.vigilance;
+      }
+
+      const policyAction = this.dopamine.act(brain.output);
+      this.bossPolicyTurn = clamp(
+        policyAction.turn +
+          (boss.isFinal
+            ? projectileThreat.side *
+              this.finalMemoryVigilance *
+              0.22
+            : 0),
+        -1,
+        1,
+      );
+      this.bossPolicyDrive = clamp(
+        policyAction.drive +
+          (boss.isFinal
+            ? this.finalMemoryDriveBias * 0.72
+            : 0),
+        -1,
+        1,
+      );
 
       const towardPlayer = normalize(dx, dy);
       const rightX = -Math.sin(boss.heading);
@@ -1637,7 +1878,10 @@ export class GameEngine {
         1,
       );
       const dodgeWeight = clamp(
-        projectileThreat.score * 1.2,
+        projectileThreat.score *
+          (boss.isFinal
+            ? 1.35 + this.finalMemoryVigilance * 0.55
+            : 1.2),
         0,
         1,
       );
@@ -1647,11 +1891,11 @@ export class GameEngine {
         -1,
         1,
       );
-      const proximity = clamp(1 - distance / 1050, 0, 1);
       const threat = clamp(
         0.06 +
-          proximity * 0.46 +
-          projectileThreat.score * 0.98,
+          proximity * (boss.isFinal ? 0.58 : 0.46) +
+          projectileThreat.score *
+            (boss.isFinal ? 1.18 : 0.98),
         0,
         1,
       );
@@ -1689,7 +1933,10 @@ export class GameEngine {
     const dodgeTurn =
       projectileThreat.side *
       projectileThreat.score *
-      (1.45 + boss.stage * 0.1);
+      (1.45 + boss.stage * 0.1) *
+      (boss.isFinal
+        ? 1.25 + this.finalMemoryVigilance * 0.75
+        : 1);
     const targetAngularVelocity =
       this.bossPolicyTurn *
         3.75 *
@@ -1698,7 +1945,13 @@ export class GameEngine {
       dodgeTurn;
 
     const angularResponse =
-      projectileThreat.score > 0.2 ? 10 : 5.2;
+      projectileThreat.score > 0.2
+        ? boss.isFinal
+          ? 13.5
+          : 10
+        : boss.isFinal
+          ? 6.8
+          : 5.2;
     boss.angularVelocity +=
       (targetAngularVelocity - boss.angularVelocity) *
       clamp(dt * angularResponse, 0, 1);
@@ -1719,7 +1972,9 @@ export class GameEngine {
             ? 0.8
             : boss.kind === 'GLIAL_TITAN'
               ? 0.74
-              : 1.08;
+              : boss.kind === 'VIRTUAL_DROSOPHILA'
+                ? 1.2 + (boss.phase - 1) * 0.1
+                : 1.08;
 
     let drive =
       this.bossPolicyDrive *
@@ -1729,7 +1984,8 @@ export class GameEngine {
 
     if (
       (boss.kind === 'NEURAL_HUNTER' ||
-        boss.kind === 'CONNECTOME_APEX') &&
+        boss.kind === 'CONNECTOME_APEX' ||
+        boss.kind === 'VIRTUAL_DROSOPHILA') &&
       distance < 350 &&
       out.forward > 0.3
     ) {
@@ -1751,16 +2007,21 @@ export class GameEngine {
       const reflexStrength =
         (125 + boss.stage * 24) *
         projectileThreat.score *
-        imminentBoost;
+        imminentBoost *
+        (boss.isFinal
+          ? 1.45 + this.finalMemoryVigilance * 0.8
+          : 1);
       desiredX += projectileThreat.evadeX * reflexStrength;
       desiredY += projectileThreat.evadeY * reflexStrength;
     }
     const baseResponse =
       boss.kind === 'NEURAL_HUNTER'
         ? 5
-        : boss.kind === 'CONNECTOME_APEX'
-          ? 4.7
-          : boss.kind === 'STORM_BRAIN'
+        : boss.kind === 'VIRTUAL_DROSOPHILA'
+          ? 6.6
+          : boss.kind === 'CONNECTOME_APEX'
+            ? 4.7
+            : boss.kind === 'STORM_BRAIN'
             ? 4
             : 3.65;
     const responsiveness = clamp(
@@ -1791,9 +2052,11 @@ export class GameEngine {
           ? 1.28
           : boss.kind === 'GLIAL_TITAN'
             ? 1.48
-            : boss.kind === 'CONNECTOME_APEX'
-              ? 1.38
-              : boss.kind === 'NEURAL_HUNTER'
+            : boss.kind === 'VIRTUAL_DROSOPHILA'
+              ? 1.9 + (boss.phase - 1) * 0.18
+              : boss.kind === 'CONNECTOME_APEX'
+                ? 1.38
+                : boss.kind === 'NEURAL_HUNTER'
                 ? 1.12
                 : 1;
       this.damagePlayerFromBoss(
@@ -1814,15 +2077,23 @@ export class GameEngine {
           ? 1.7
           : boss.kind === 'GLIAL_TITAN'
             ? 1.85
-            : boss.kind === 'CONNECTOME_APEX'
-              ? 1.5
-              : 2.25;
+            : boss.kind === 'VIRTUAL_DROSOPHILA'
+              ? boss.phase === 1
+                ? 1.15
+                : boss.phase === 2
+                  ? 0.9
+                  : 0.68
+              : boss.kind === 'CONNECTOME_APEX'
+                ? 1.5
+                : 2.25;
       const pulseDamageScale =
         boss.kind === 'GLIAL_TITAN'
           ? 1.28
-          : boss.kind === 'CONNECTOME_APEX'
-            ? 1.42
-            : boss.kind === 'STORM_BRAIN'
+          : boss.kind === 'VIRTUAL_DROSOPHILA'
+            ? 1.85 + (boss.phase - 1) * 0.22
+            : boss.kind === 'CONNECTOME_APEX'
+              ? 1.42
+              : boss.kind === 'STORM_BRAIN'
               ? 1.18
               : 1;
 
@@ -2011,101 +2282,276 @@ export class GameEngine {
       return;
     }
 
-    boss.specialCooldown = 2.7 * boss.cooldownScale;
+    if (boss.kind === 'CONNECTOME_APEX') {
+      boss.specialCooldown = 2.7 * boss.cooldownScale;
 
-    const radialCount = 18;
+      const radialCount = 18;
+      for (let i = 0; i < radialCount; i += 1) {
+        const angle =
+          (i / radialCount) * TAU + this.time * 0.46;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (215 + this.wave * 4) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (215 + this.wave * 4) *
+            boss.speedScale,
+          radius: 6.5,
+          damage:
+            (9.5 + this.wave * 0.65) * boss.damageScale,
+          life: 4.5,
+          color: '#ff5b63',
+          bossOwned: true,
+        });
+      }
+
+      for (let i = -2; i <= 2; i += 1) {
+        const angle = Math.atan2(dy, dx) + i * 0.13;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx:
+            Math.cos(angle) *
+            (315 + this.wave * 5) *
+            boss.speedScale,
+          vy:
+            Math.sin(angle) *
+            (315 + this.wave * 5) *
+            boss.speedScale,
+          radius: 5.5,
+          damage:
+            (10.5 + this.wave * 0.7) * boss.damageScale,
+          life: 3.6,
+          color: '#ffffff',
+          bossOwned: true,
+        });
+      }
+
+      this.callbacks.onSound('bossStrikeCharge');
+      const apexOffsets = [
+        { x: 0, y: 0 },
+        { x: 125, y: -70 },
+        { x: -125, y: 70 },
+      ];
+      for (const offset of apexOffsets) {
+        const x = clamp(
+          this.player.x + offset.x,
+          80,
+          WORLD_WIDTH - 80,
+        );
+        const y = clamp(
+          this.player.y + offset.y,
+          80,
+          WORLD_HEIGHT - 80,
+        );
+        this.bossStrikes.push({
+          x,
+          y,
+          timer: 0.46,
+          maxTimer: 0.46,
+          radius: 88,
+          damage:
+            (15 + this.wave * 0.95) * boss.damageScale,
+          color: '#ff5b63',
+        });
+        this.spawnRing(x, y, 18, 88, '#ff5b63', 0.46, 4);
+      }
+
+      for (let i = 0; i < 4; i += 1) {
+        const minion = this.createFly();
+        minion.x = clamp(
+          boss.x + randomRange(-120, 120),
+          20,
+          WORLD_WIDTH - 20,
+        );
+        minion.y = clamp(
+          boss.y + randomRange(-120, 120),
+          20,
+          WORLD_HEIGHT - 20,
+        );
+        minion.kind = i % 2 === 0 ? 'BOMBER' : 'SPITTER';
+        minion.hp *= 1.7;
+        minion.maxHp = minion.hp;
+        this.flies.push(minion);
+      }
+      return;
+    }
+
+    // VIRTUAL DROSOPHILA: no minions. Its learned valence changes the mix
+    // between pursuit fire and avoidance-oriented area denial.
+    const memory = this.mushroomBody.getSnapshot();
+    const approachBias = clamp(
+      0.5 + (memory.approach - memory.avoidance),
+      0,
+      1,
+    );
+    const avoidBias = clamp(
+      0.5 + (memory.avoidance - memory.approach),
+      0,
+      1,
+    );
+    const phase = boss.phase;
+
+    const cooldownBase =
+      phase === 1 ? 1.72 : phase === 2 ? 1.28 : 0.96;
+    boss.specialCooldown =
+      cooldownBase *
+      Math.max(0.72, boss.cooldownScale * 1.55);
+
+    const radialCount =
+      phase === 1 ? 20 : phase === 2 ? 26 : 32;
+    const radialSpeed =
+      (225 + phase * 34 + avoidBias * 55) * boss.speedScale;
+
     for (let i = 0; i < radialCount; i += 1) {
       const angle =
-        (i / radialCount) * TAU + this.time * 0.46;
+        (i / radialCount) * TAU +
+        this.time * (0.44 + phase * 0.12) +
+        (i % 2) * 0.035;
       this.enemyShots.push({
         x: boss.x,
         y: boss.y,
-        vx:
-          Math.cos(angle) *
-          (215 + this.wave * 4) *
-          boss.speedScale,
-        vy:
-          Math.sin(angle) *
-          (215 + this.wave * 4) *
-          boss.speedScale,
-        radius: 6.5,
+        vx: Math.cos(angle) * radialSpeed,
+        vy: Math.sin(angle) * radialSpeed,
+        radius: phase === 3 && i % 2 === 0 ? 7 : 5.8,
         damage:
-          (9.5 + this.wave * 0.65) * boss.damageScale,
-        life: 4.5,
-        color: '#ff5b63',
+          (7.2 + this.wave * 0.48 + phase * 1.2) *
+          boss.damageScale,
+        life: 4.8,
+        color: i % 2 === 0 ? '#ff4fd8' : '#ffffff',
         bossOwned: true,
       });
     }
 
-    for (let i = -2; i <= 2; i += 1) {
-      const angle = Math.atan2(dy, dx) + i * 0.13;
+    const aimedCount =
+      phase === 1
+        ? 5
+        : phase === 2
+          ? 7
+          : 9;
+    const aimedSpread =
+      phase === 3 ? 0.095 : 0.12;
+
+    for (let i = 0; i < aimedCount; i += 1) {
+      const centered = i - (aimedCount - 1) / 2;
+      const angle =
+        Math.atan2(dy, dx) +
+        centered * aimedSpread;
+      const speed =
+        (350 +
+          phase * 38 +
+          approachBias * 95) *
+        boss.speedScale;
+
       this.enemyShots.push({
         x: boss.x,
         y: boss.y,
-        vx:
-          Math.cos(angle) *
-          (315 + this.wave * 5) *
-          boss.speedScale,
-        vy:
-          Math.sin(angle) *
-          (315 + this.wave * 5) *
-          boss.speedScale,
-        radius: 5.5,
+        vx: Math.cos(angle) * speed,
+        vy: Math.sin(angle) * speed,
+        radius: 5.2,
         damage:
-          (10.5 + this.wave * 0.7) * boss.damageScale,
-        life: 3.6,
+          (8.5 + this.wave * 0.56 + phase * 1.6) *
+          boss.damageScale,
+        life: 3.4,
         color: '#ffffff',
         bossOwned: true,
       });
     }
 
+    const strikeCount =
+      phase === 1
+        ? 2
+        : phase === 2
+          ? 4
+          : 6;
+    const strikeRadius =
+      phase === 3 ? 86 : 78;
+
     this.callbacks.onSound('bossStrikeCharge');
-    const apexOffsets = [
-      { x: 0, y: 0 },
-      { x: 125, y: -70 },
-      { x: -125, y: 70 },
-    ];
-    for (const offset of apexOffsets) {
+    for (let i = 0; i < strikeCount; i += 1) {
+      const angle =
+        (i / strikeCount) * TAU +
+        this.time * 0.28;
+      const spread =
+        72 + i * 22 + avoidBias * 34;
       const x = clamp(
-        this.player.x + offset.x,
-        80,
-        WORLD_WIDTH - 80,
+        this.player.x + Math.cos(angle) * spread,
+        90,
+        WORLD_WIDTH - 90,
       );
       const y = clamp(
-        this.player.y + offset.y,
-        80,
-        WORLD_HEIGHT - 80,
+        this.player.y + Math.sin(angle) * spread,
+        90,
+        WORLD_HEIGHT - 90,
       );
+
       this.bossStrikes.push({
         x,
         y,
-        timer: 0.46,
-        maxTimer: 0.46,
-        radius: 88,
+        timer: phase === 3 ? 0.34 : 0.42,
+        maxTimer: phase === 3 ? 0.34 : 0.42,
+        radius: strikeRadius,
         damage:
-          (15 + this.wave * 0.95) * boss.damageScale,
-        color: '#ff5b63',
+          (14 + this.wave * 0.75 + phase * 2.3) *
+          boss.damageScale,
+        color: '#ff4fd8',
       });
-      this.spawnRing(x, y, 18, 88, '#ff5b63', 0.46, 4);
+      this.spawnRing(
+        x,
+        y,
+        16,
+        strikeRadius,
+        '#ff4fd8',
+        phase === 3 ? 0.34 : 0.42,
+        4,
+      );
     }
 
-    for (let i = 0; i < 4; i += 1) {
-      const minion = this.createFly();
-      minion.x = clamp(
-        boss.x + randomRange(-120, 120),
-        20,
-        WORLD_WIDTH - 20,
-      );
-      minion.y = clamp(
-        boss.y + randomRange(-120, 120),
-        20,
-        WORLD_HEIGHT - 20,
-      );
-      minion.kind = i % 2 === 0 ? 'BOMBER' : 'SPITTER';
-      minion.hp *= 1.7;
-      minion.maxHp = minion.hp;
-      this.flies.push(minion);
+    if (phase >= 2) {
+      const waveCount = phase === 2 ? 8 : 12;
+      for (let i = 0; i < waveCount; i += 1) {
+        const angle =
+          boss.heading +
+          (i / waveCount) * TAU +
+          Math.sin(this.time * 1.7) * 0.12;
+        const speed =
+          (170 + (i % 3) * 55) * boss.speedScale;
+        this.enemyShots.push({
+          x: boss.x,
+          y: boss.y,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          radius: 8.2,
+          damage:
+            (7 + this.wave * 0.45 + phase) *
+            boss.damageScale,
+          life: 5.2,
+          color: '#8cf5ff',
+          bossOwned: true,
+        });
+      }
     }
+
+    this.spawnParticles(
+      boss.x,
+      boss.y,
+      '#ff4fd8',
+      18 + phase * 8,
+      160 + phase * 30,
+    );
+    this.spawnRing(
+      boss.x,
+      boss.y,
+      16,
+      110 + phase * 24,
+      '#ffffff',
+      0.32,
+      4 + phase,
+    );
   }
 
   private updateShooting() {
@@ -3176,25 +3622,85 @@ export class GameEngine {
 
   private killBoss() {
     if (!this.boss) return;
-    const { x, y, kind, stage } = this.boss;
-    this.defeatedBosses.add(kind);
 
-    this.spawnParticles(x, y, '#ffffff', 72, 270);
-    for (let i = 0; i < 4; i += 1) {
+    const boss = this.boss;
+    const { x, y, kind, stage, isFinal } = boss;
+    const color = this.getBossColor(kind);
+
+    this.spawnParticles(
+      x,
+      y,
+      '#ffffff',
+      isFinal ? 150 : 72,
+      isFinal ? 390 : 270,
+    );
+    for (let i = 0; i < (isFinal ? 9 : 4); i += 1) {
       this.lightningFx.push({
-        x1: x + randomRange(-220, 220),
-        y1: y - randomRange(300, 560),
-        x2: x + randomRange(-30, 30),
-        y2: y + randomRange(-30, 30),
-        life: 0.48,
-        maxLife: 0.48,
-        color: '#c7ff45',
+        x1: x + randomRange(-260, 260),
+        y1: y - randomRange(300, 620),
+        x2: x + randomRange(-40, 40),
+        y2: y + randomRange(-40, 40),
+        life: isFinal ? 0.72 : 0.48,
+        maxLife: isFinal ? 0.72 : 0.48,
+        color,
       });
     }
-    this.spawnRing(x, y, 20, 310, '#ffffff', 0.72, 12);
-    this.spawnRing(x, y, 30, 220, '#c7ff45', 0.58, 7);
-    this.screenShake = Math.max(this.screenShake, 18);
+    this.spawnRing(
+      x,
+      y,
+      20,
+      isFinal ? 520 : 310,
+      '#ffffff',
+      isFinal ? 1.05 : 0.72,
+      isFinal ? 16 : 12,
+    );
+    this.spawnRing(
+      x,
+      y,
+      30,
+      isFinal ? 410 : 220,
+      color,
+      isFinal ? 0.9 : 0.58,
+      isFinal ? 12 : 7,
+    );
+    this.screenShake = Math.max(
+      this.screenShake,
+      isFinal ? 30 : 18,
+    );
     this.callbacks.onSound('bossDeath');
+
+    if (isFinal) {
+      this.mushroomBody.reward(-2.5);
+      this.dopamine.reward(-2.5);
+      this.finalBossDefeated = true;
+      this.finalBossPending = false;
+      this.finalBossCountdown = 0;
+      this.gameCleared = true;
+      this.kills += 250;
+
+      this.boss = null;
+      this.enemyShots = [];
+      this.bossStrikes = [];
+      this.flies = [];
+      this.chests = [];
+      this.orbs = [];
+      this.damageFields = [];
+      this.brain.reset();
+
+      this.callbacks.onSound('gameClear');
+      this.callbacks.onGameClear({
+        kills: this.kills,
+        wave: this.wave,
+        seconds: this.time,
+        bossesDefeated: this.defeatedBosses.size,
+        bossesTotal: 5,
+        finalBossDefeated: true,
+      });
+      this.emitHud();
+      return;
+    }
+
+    this.defeatedBosses.add(kind as CoreBossKind);
     this.dopamine.reward(-2);
     this.dopamine.nextGeneration();
 
@@ -3223,17 +3729,7 @@ export class GameEngine {
     this.brain.reset();
 
     if (this.defeatedBosses.size >= 5) {
-      this.gameCleared = true;
-      this.callbacks.onSound('gameClear');
-      this.enemyShots = [];
-      this.callbacks.onGameClear({
-        kills: this.kills,
-        wave: this.wave,
-        seconds: this.time,
-        bossesDefeated: this.defeatedBosses.size,
-        bossesTotal: 5,
-      });
-      this.emitHud();
+      this.beginFinalEncounter();
       return;
     }
 
@@ -3607,6 +4103,9 @@ export class GameEngine {
 
     if (this.player.hp <= 0) {
       this.dopamine.reward(2.5);
+      if (this.boss?.isFinal) {
+        this.mushroomBody.reward(2.5);
+      }
     }
   }
 
@@ -3655,6 +4154,10 @@ export class GameEngine {
       skills: this.getOwnedSkills(),
       bossesDefeated: this.defeatedBosses.size,
       bossesTotal: 5,
+      finalBossActive: Boolean(this.boss?.isFinal),
+      finalBossDefeated: this.finalBossDefeated,
+      finalBossPending: this.finalBossPending,
+      finalBossCountdown: this.finalBossCountdown,
       boss: this.boss
         ? {
             active: true,
@@ -3666,6 +4169,11 @@ export class GameEngine {
             totalStages: 5,
             brain: connectome,
             dopamine: this.dopamine.getSnapshot(),
+            isFinal: this.boss.isFinal,
+            phase: this.boss.phase,
+            mushroomBody: this.boss.isFinal
+              ? this.mushroomBody.getSnapshot()
+              : null,
           }
         : null,
     });
@@ -4013,6 +4521,40 @@ export class GameEngine {
       ctx.stroke();
     }
 
+    if (this.boss.kind === 'VIRTUAL_DROSOPHILA') {
+      const memory = this.mushroomBody.getSnapshot();
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2.8;
+      for (let i = 0; i < 10; i += 1) {
+        const angle = (i / 10) * TAU + this.time * 0.22;
+        const inner = 21 * scale;
+        const outer =
+          (44 + memory.memoryStrength * 26) * scale;
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(angle) * inner, Math.sin(angle) * inner);
+        ctx.lineTo(Math.cos(angle) * outer, Math.sin(angle) * outer);
+        ctx.stroke();
+      }
+
+      ctx.strokeStyle = '#ff4fd8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(0, 0, (18 + this.boss.phase * 3) * scale, 0, TAU);
+      ctx.stroke();
+
+      ctx.strokeStyle = '#8cf5ff';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(
+        0,
+        0,
+        (28 + memory.novelty * 12) * scale,
+        0,
+        TAU,
+      );
+      ctx.stroke();
+    }
+
     ctx.shadowBlur = 0;
     ctx.fillStyle = '#0a0e12';
     ctx.beginPath();
@@ -4043,7 +4585,9 @@ export class GameEngine {
     ctx.font = '900 11px Inter, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(
-      `STAGE ${this.boss.stage}/5 · ${this.boss.name} · FULL CONNECTOME`,
+      this.boss.isFinal
+        ? `FINAL · PHASE ${this.boss.phase}/3 · ${this.boss.name} · CONNECTOME + MB`
+        : `STAGE ${this.boss.stage}/5 · ${this.boss.name} · FULL CONNECTOME`,
       this.boss.x,
       this.boss.y - this.boss.radius - 48,
     );
