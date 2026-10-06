@@ -632,6 +632,8 @@ FlySwarm의 음악과 효과음은 외부 MP3/WAV Asset을 사용하지 않고 *
 - Storm Brain Neural Strike 예고
 - Storm Brain Neural Strike 충돌
 - Boss 처치
+- Virtual Drosophila 최종 보스 등장
+- Virtual Drosophila Phase 전환
 - Axonal Spike
 - Calcium Cascade
 - Game Over
