@@ -294,6 +294,13 @@ src/components/SkillIcon.tsx
 
 두 공격이 모두 MAX가 되는 순간 가능한 합성을 즉시 제안합니다. `NOT NOW`를 누르면 원본 MAX 스킬을 유지한 채 전투로 복귀하며, 합성은 이후 Level Up / Reward Cache에서 다시 등장할 수 있습니다.
 
+Fusion을 실제로 선택하면 두 원본 공격의 **전투 효과는 계속 유지**되지만 두 스킬은 합성 재료로 소비됩니다.
+
+- 한 번 Fusion에 사용된 원본 공격은 다른 Fusion에 다시 사용할 수 없습니다.
+- HUD에서는 해당 원본이 `FUSED · <Fusion Name>`으로 표시됩니다.
+- 6개 공격 원본으로 한 판에서 만들 수 있는 Fusion은 최대 3개입니다.
+- 취소(`NOT NOW`)한 경우에는 아직 소비되지 않으므로 다른 조합을 선택할 수 있습니다.
+
 6개 공격의 가능한 모든 2개 조합, 즉 **6C2 = 15개**를 전부 구현합니다.
 
 | Fusion | MAX Requirement |
@@ -315,6 +322,36 @@ src/components/SkillIcon.tsx
 | GLIAL CALCIUM STORM | Glial Matrix + Calcium Cascade |
 
 Fusion은 단순 이름 변경이 아니라 원본 두 공격을 함께 증폭하고, 조합별 교차 효과를 추가합니다.
+
+### Fusion Integrity Check
+
+엔진은 6개 공격의 모든 2개 조합이 정확히 한 번씩 존재하는지 검사합니다.
+
+- 총 Recipe 수 = 15
+- 중복 Pair 금지
+- 동일 Source 두 번 사용 금지
+- 15개 FusionKey 전체 Runtime Coverage 목록 유지
+- 잠긴 Source가 포함된 Recipe는 Level Up / Reward Cache / 즉시 Fusion Offer에서 모두 제외
+
+이번 검토에서 공통 배율만 적용되던 두 조합도 개별 효과를 추가했습니다.
+
+- **VESICLE SECRETION HALO** — 각 Synaptic Vesicle Orbit 주변에 독성 Halo 지속 피해
+- **SYNAPTIC LATTICE** — 각 Orbit이 0.48초마다 국소 Neural Pulse 방출
+
+### Synaptic Vesicle Orbit Buff
+
+Orbit은 후반 5단계 Boss와 Projectile Evasion 환경에서도 공격 스킬 역할을 할 수 있도록 강화했습니다.
+
+- Lv1 획득 시 Orbital 1개가 아니라 **2개** 생성
+- 기본 Orbital Damage 10 → **14**
+- Lv1 추가 Damage +4, 이후 레벨마다 +3
+- 회전속도 2.1 → **3.05 rad/s**
+- 접촉 판정 반경 10 → **17**
+- 일반 적 DPS 계수 6 → **8.2**
+- Boss DPS 계수 4 → **6.3**
+- 5개 이상 보유 시 70px / 96px **이중 궤도** 사용
+- Orbit 기반 Fusion 공통 강화량 증가
+- 실제 공격 궤도와 렌더링 위치를 완전히 동일하게 유지
 
 ## 🪰 Giant Fiber Evasion Reflex
 
