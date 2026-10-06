@@ -4145,6 +4145,10 @@ export class GameEngine {
       skills: this.getOwnedSkills(),
       bossesDefeated: this.defeatedBosses.size,
       bossesTotal: 5,
+      finalBossActive: Boolean(this.boss?.isFinal),
+      finalBossDefeated: this.finalBossDefeated,
+      finalBossPending: this.finalBossPending,
+      finalBossCountdown: this.finalBossCountdown,
       boss: this.boss
         ? {
             active: true,
@@ -4156,6 +4160,11 @@ export class GameEngine {
             totalStages: 5,
             brain: connectome,
             dopamine: this.dopamine.getSnapshot(),
+            isFinal: this.boss.isFinal,
+            phase: this.boss.phase,
+            mushroomBody: this.boss.isFinal
+              ? this.mushroomBody.getSnapshot()
+              : null,
           }
         : null,
     });
