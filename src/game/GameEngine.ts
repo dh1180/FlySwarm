@@ -318,6 +318,7 @@ export class GameEngine {
   private raf = 0;
   private running = false;
   private pausedForUpgrade = false;
+  private pendingUpgradeLevelGain = 1;
   private gameOver = false;
   private gameCleared = false;
   private finalBossPending = false;
@@ -452,6 +453,7 @@ export class GameEngine {
     this.touchMoveX = 0;
     this.touchMoveY = 0;
     this.pausedForUpgrade = false;
+    this.pendingUpgradeLevelGain = 1;
     this.gameOver = false;
     this.gameCleared = false;
     this.finalBossPending = false;
@@ -487,6 +489,7 @@ export class GameEngine {
 
   applyUpgrade(key: SkillKey) {
     if (this.isEvolutionKey(key)) {
+      this.pendingUpgradeLevelGain = 1;
       const evolution = evolutionCatalog.find((item) => item.key === key);
       if (
         !evolution ||
@@ -521,170 +524,186 @@ export class GameEngine {
 
     const definition = upgradeCatalog.find((item) => item.key === key);
     if (!definition) {
+      this.pendingUpgradeLevelGain = 1;
       this.pausedForUpgrade = false;
       return;
     }
 
     const currentLevel = this.getUpgradeLevel(key);
     if (currentLevel >= definition.maxLevel) {
+      this.pendingUpgradeLevelGain = 1;
       this.pausedForUpgrade = false;
       return;
     }
 
-    const nextLevel = currentLevel + 1;
-    this.upgradeLevels[key] = nextLevel;
+    const requestedGain = Math.max(1, this.pendingUpgradeLevelGain);
+    const targetLevel = Math.min(
+      definition.maxLevel,
+      currentLevel + requestedGain,
+    );
+
     if (currentLevel === 0) this.ownedSkillOrder.push(key);
 
-    switch (key) {
-      case 'damage':
-        this.player.damage *= 1.25;
-        break;
-      case 'firerate':
-        this.player.fireInterval = Math.max(
-          0.07,
-          this.player.fireInterval * 0.82,
-        );
-        break;
-      case 'multishot':
-        this.player.bulletCount = Math.min(9, this.player.bulletCount + 1);
-        break;
-      case 'speed':
-        this.player.speed *= 1.12;
-        break;
-      case 'health':
-        this.player.maxHp += 25;
-        this.player.hp = Math.min(this.player.maxHp, this.player.hp + 38);
-        break;
-      case 'pierce':
-        this.player.pierce += 1;
-        break;
-      case 'magnet':
-        this.player.magnet += 35;
-        break;
-      case 'bulletSpeed':
-        this.player.bulletSpeed *= 1.2;
-        break;
-      case 'bulletSize':
-        this.player.bulletSize += 1.2;
-        break;
-      case 'crit':
-        this.player.critChance = Math.min(
-          0.52,
-          this.player.critChance + 0.08,
-        );
-        break;
-      case 'regen':
-        this.player.regen += 0.65;
-        break;
-      case 'armor':
-        this.player.armor = Math.min(0.45, this.player.armor + 0.05);
-        break;
-      case 'knockback':
-        this.player.knockback += 22;
-        break;
-      case 'orbital':
-        this.player.orbitalCount = Math.min(
-          7,
-          this.player.orbitalCount + (nextLevel === 1 ? 2 : 1),
-        );
-        this.player.orbitalDamage += nextLevel === 1 ? 4 : 3;
-        break;
-      case 'nova':
-        if (this.player.novaInterval <= 0) {
-          this.player.novaInterval = 7;
-          this.player.novaDamage = 58;
-          this.player.novaTimer = 0;
-        } else {
-          this.player.novaInterval = Math.max(
-            2.6,
-            this.player.novaInterval * 0.86,
+    for (
+      let appliedLevel = currentLevel + 1;
+      appliedLevel <= targetLevel;
+      appliedLevel += 1
+    ) {
+      this.upgradeLevels[key] = appliedLevel;
+      switch (key) {
+        case 'damage':
+          this.player.damage *= 1.25;
+          break;
+        case 'firerate':
+          this.player.fireInterval = Math.max(
+            0.07,
+            this.player.fireInterval * 0.82,
           );
-          this.player.novaDamage *= 1.22;
-        }
-        break;
-      case 'xpGain':
-        this.player.xpGain += 0.25;
-        break;
-      case 'bossDamage':
-        this.player.bossDamage *= 1.25;
-        break;
-      case 'critPower':
-        this.player.critMultiplier += 0.45;
-        break;
-      case 'leech':
-        this.player.killHeal += 0.8;
-        break;
-      case 'toxinAura':
-        if (this.player.auraDamage <= 0) {
-          this.player.auraDamage = 14;
-          this.player.auraRadius = 105;
-        } else {
-          this.player.auraDamage *= 1.24;
-          this.player.auraRadius += 12;
-        }
-        break;
-      case 'chain':
-        this.player.chainChance = Math.min(
-          0.72,
-          this.player.chainChance + 0.18,
-        );
-        this.player.chainDamage = Math.min(
-          0.8,
-          Math.max(0.32, this.player.chainDamage + 0.08),
-        );
-        break;
-      case 'shield':
-        this.player.shieldMax += 22;
-        this.player.shield = this.player.shieldMax;
-        this.player.shieldRegen += 2.4;
-        break;
-      case 'adrenaline':
-        this.player.adrenaline = Math.min(4, this.player.adrenaline + 1);
-        break;
-      case 'bulletLife':
-        this.player.bulletLife *= 1.3;
-        break;
-      case 'overclock':
-        this.player.damage *= 1.14;
-        this.player.fireInterval = Math.max(
-          0.07,
-          this.player.fireInterval * 0.9,
-        );
-        this.player.speed *= 1.06;
-        break;
-      case 'manualLance':
-        this.player.manualLanceLevel = Math.min(
-          5,
-          this.player.manualLanceLevel + 1,
-        );
-        break;
-      case 'targetLightning':
-        this.player.lightningLevel = Math.min(
-          5,
-          this.player.lightningLevel + 1,
-        );
-        break;
-      case 'synapticField':
-        this.player.fieldLevel = Math.min(5, this.player.fieldLevel + 1);
-        this.player.fieldTimer = 0;
-        break;
-      case 'meteor':
-        this.player.meteorLevel = Math.min(5, this.player.meteorLevel + 1);
-        this.player.meteorTimer = 0;
-        break;
-      case 'ricochet':
-        this.player.ricochetLevel = Math.min(
-          5,
-          this.player.ricochetLevel + 1,
-        );
-        break;
-      case 'execute':
-        this.player.executeLevel = Math.min(
-          5,
-          this.player.executeLevel + 1,
-        );
-        break;
+          break;
+        case 'multishot':
+          this.player.bulletCount = Math.min(9, this.player.bulletCount + 1);
+          break;
+        case 'speed':
+          this.player.speed *= 1.12;
+          break;
+        case 'health':
+          this.player.maxHp += 25;
+          this.player.hp = Math.min(this.player.maxHp, this.player.hp + 38);
+          break;
+        case 'pierce':
+          this.player.pierce += 1;
+          break;
+        case 'magnet':
+          this.player.magnet += 35;
+          break;
+        case 'bulletSpeed':
+          this.player.bulletSpeed *= 1.2;
+          break;
+        case 'bulletSize':
+          this.player.bulletSize += 1.2;
+          break;
+        case 'crit':
+          this.player.critChance = Math.min(
+            0.52,
+            this.player.critChance + 0.08,
+          );
+          break;
+        case 'regen':
+          this.player.regen += 0.65;
+          break;
+        case 'armor':
+          this.player.armor = Math.min(0.45, this.player.armor + 0.05);
+          break;
+        case 'knockback':
+          this.player.knockback += 22;
+          break;
+        case 'orbital':
+          this.player.orbitalCount = Math.min(
+            7,
+            this.player.orbitalCount + (appliedLevel === 1 ? 2 : 1),
+          );
+          this.player.orbitalDamage += appliedLevel === 1 ? 4 : 3;
+          break;
+        case 'nova':
+          if (this.player.novaInterval <= 0) {
+            this.player.novaInterval = 7;
+            this.player.novaDamage = 58;
+            this.player.novaTimer = 0;
+          } else {
+            this.player.novaInterval = Math.max(
+              2.6,
+              this.player.novaInterval * 0.86,
+            );
+            this.player.novaDamage *= 1.22;
+          }
+          break;
+        case 'xpGain':
+          this.player.xpGain += 0.25;
+          break;
+        case 'bossDamage':
+          this.player.bossDamage *= 1.25;
+          break;
+        case 'critPower':
+          this.player.critMultiplier += 0.45;
+          break;
+        case 'leech':
+          this.player.killHeal += 0.8;
+          break;
+        case 'toxinAura':
+          if (this.player.auraDamage <= 0) {
+            this.player.auraDamage = 14;
+            this.player.auraRadius = 105;
+          } else {
+            this.player.auraDamage *= 1.24;
+            this.player.auraRadius += 12;
+          }
+          break;
+        case 'chain':
+          this.player.chainChance = Math.min(
+            0.72,
+            this.player.chainChance + 0.18,
+          );
+          this.player.chainDamage = Math.min(
+            0.8,
+            Math.max(0.32, this.player.chainDamage + 0.08),
+          );
+          break;
+        case 'shield':
+          this.player.shieldMax += 22;
+          this.player.shield = this.player.shieldMax;
+          this.player.shieldRegen += 2.4;
+          break;
+        case 'adrenaline':
+          this.player.adrenaline = Math.min(4, this.player.adrenaline + 1);
+          break;
+        case 'bulletLife':
+          this.player.bulletLife *= 1.3;
+          break;
+        case 'overclock':
+          this.player.damage *= 1.14;
+          this.player.fireInterval = Math.max(
+            0.07,
+            this.player.fireInterval * 0.9,
+          );
+          this.player.speed *= 1.06;
+          break;
+        case 'manualLance':
+          this.player.manualLanceLevel = Math.min(
+            5,
+            this.player.manualLanceLevel + 1,
+          );
+          break;
+        case 'targetLightning':
+          this.player.lightningLevel = Math.min(
+            5,
+            this.player.lightningLevel + 1,
+          );
+          break;
+        case 'synapticField':
+          this.player.fieldLevel = Math.min(5, this.player.fieldLevel + 1);
+          this.player.fieldTimer = 0;
+          break;
+        case 'meteor':
+          this.player.meteorLevel = Math.min(5, this.player.meteorLevel + 1);
+          this.player.meteorTimer = 0;
+          break;
+        case 'ricochet':
+          this.player.ricochetLevel = Math.min(
+            5,
+            this.player.ricochetLevel + 1,
+          );
+          break;
+        case 'execute':
+          this.player.executeLevel = Math.min(
+            5,
+            this.player.executeLevel + 1,
+          );
+          break;
+      }
     }
+
+    const nextLevel = targetLevel;
+    this.pendingUpgradeLevelGain = 1;
 
     this.callbacks.onSound('upgrade');
 
@@ -715,6 +734,7 @@ export class GameEngine {
   }
 
   cancelFusionOffer() {
+    this.pendingUpgradeLevelGain = 1;
     this.pausedForUpgrade = false;
     this.emitHud();
   }
